@@ -65,7 +65,7 @@ export default function Home(){
   function instrumentPreview(html){
     if(!html)return html;
     const bridge = '<script>(function(){window.addEventListener("error",function(e){try{parent.postMessage({source:"asf-preview-error",message:e.message||"JavaScript error"},"*")}catch(_){}});window.addEventListener("unhandledrejection",function(e){try{parent.postMessage({source:"asf-preview-error",message:String(e.reason?.message||e.reason||"Unhandled promise rejection")},"*")}catch(_){}})})();</script>';
-    return html.replace(/<\\/body>/i,bridge+"</body>");
+    return html.replace(/<\/body>/i,bridge+"</body>");
   }
 
   function jumpToLatest(){
