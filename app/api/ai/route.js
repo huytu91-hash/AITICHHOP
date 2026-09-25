@@ -43,8 +43,15 @@ export async function POST(req){
     const list=(b.providers||[]).filter(x=>x?.key&&FREE.has(x.id));
     if(!list.length)return NextResponse.json({error:"Chưa có FREE provider khả dụng."},{status:400});
     const ordered=b.selected&&b.selected!=="auto"?[...list.filter(x=>x.id===b.selected),...list.filter(x=>x.id!==b.selected)]:list;
+    const workflow={
+      auto:"You are the lead AI orchestrator. First understand the user's goal, ask only essential missing questions, then produce a practical plan. If the request is clearly ready to build, provide an implementation plan before coding.",
+      plan:"You are the product planner and software architect. Do not rush into code. Analyze requirements, users, roles, screens, data, API, security, deployment, risks and milestones. Ask essential questions when information is missing.",
+      build:"You are the implementation engineer. Use the user's requirements and any existing plan/context to produce concrete implementation steps and code-oriented output. Prefer small verifiable changes.",
+      review:"You are a senior reviewer. Inspect the provided requirements/output, identify bugs, missing requirements, security issues and architectural risks, then propose precise fixes."
+    }[b.mode||"auto"];
+    const routedPrompt=workflow+"\n\nUSER REQUEST:\n"+b.prompt;
     const logs=[]; let last="";
-    for(const p of ordered){logs.push("FREE Router → "+p.id+" / "+(p.model||"default"));try{const text=await call({...p,prompt:b.prompt});logs.push("✓ "+p.id+" OK");return NextResponse.json({text,provider:p.id,logs})}catch(e){last=e.message;logs.push((transient(e.status)?"↪ ":"✕ ")+p.id+": "+e.message)}}
+    for(const p of ordered){logs.push("FREE Router → "+p.id+" / "+(p.model||"default"));try{const text=await call({...p,prompt:routedPrompt});logs.push("✓ "+p.id+" OK");return NextResponse.json({text,provider:p.id,logs})}catch(e){last=e.message;logs.push((transient(e.status)?"↪ ":"✕ ")+p.id+": "+e.message)}}
     return NextResponse.json({error:"Tất cả nguồn FREE hiện không khả dụng. Không chuyển sang nguồn trả phí.",logs,lastError:last},{status:502});
   }catch(e){return NextResponse.json({error:e.message||"Server error"},{status:500})}
 }
