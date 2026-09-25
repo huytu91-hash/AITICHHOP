@@ -59,6 +59,21 @@ export async function POST(req){
   try{
     const b=await req.json();
     if(b.action==="models"){b.provider=normalizeProvider(b.provider);if(!FREE.has(b.provider))return NextResponse.json({error:"Chỉ cho phép FREE provider."},{status:403});return NextResponse.json({ok:true,models:await models(b.provider,b.key)})}
+    if(b.action==="build"){
+      const list=(b.providers||[]).filter(x=>x?.key&&FREE.has(x.id));
+      if(!list.length)return NextResponse.json({error:"Chưa có FREE provider khả dụng."},{status:400});
+      const ordered=b.selected&&b.selected!=="auto"?[...list.filter(x=>x.id===b.selected),...list.filter(x=>x.id!==b.selected)]:list;
+      const buildPrompt=languageInstruction(b.prompt)+"\n\nYou are the UI implementation engine. Build a complete self-contained web app preview from the user request. Return ONLY one complete HTML document starting with <!doctype html> and ending with </html>. Use inline CSS and vanilla JavaScript only. No markdown fences, no explanations, no external paid services. Make the interface polished, responsive, functional with demo/local data where backend APIs are not available.\n\nUSER REQUEST:\n"+b.prompt;
+      const logs=[]; let last="";
+      for(const p of ordered){logs.push("FREE Build Router → "+p.id+" / "+(p.model||"default"));try{
+        const text=await call({...p,prompt:buildPrompt});
+        const html=text.replace(/^\s*```(?:html)?\s*/i,"").replace(/\s*```\s*$/,"").trim();
+        if(!/^<!doctype html>/i.test(html)||!/<\/html>\s*$/i.test(html))throw new Error("AI không trả về HTML preview hợp lệ.");
+        logs.push("✓ "+p.id+" tạo preview OK");
+        return NextResponse.json({ok:true,html,provider:p.id,logs});
+      }catch(e){last=e.message;logs.push((transient(e.status)?"↪ ":"✕ ")+p.id+": "+e.message)}}
+      return NextResponse.json({error:"Không tạo được preview bằng nguồn FREE. Không chuyển sang nguồn trả phí.",logs,lastError:last},{status:502});
+    }
     if(b.action==="test"){
       const provider=normalizeProvider(b.provider);
       if(provider==="openrouter"){
