@@ -34,14 +34,22 @@ export default function Home(){
   const [models,setModels]=useState({});
   const [loadingModels,setLoadingModels]=useState({});
   const [connection,setConnection]=useState({});
+  const [mode,setMode]=useState("auto");
+  const [projects,setProjects]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.projects")||"[]")}catch{return []}});
+  const [activeProject,setActiveProject]=useState("");
 
   useEffect(()=>localStorage.setItem("asf.providers",JSON.stringify(providers)),[providers]);
+  useEffect(()=>localStorage.setItem("asf.projects",JSON.stringify(projects)),[projects]);
+  useEffect(()=>{if(!activeProject&&projects[0])setActiveProject(projects[0].id)},[projects,activeProject]);
 
   const enabled=useMemo(()=>providers.filter(p=>p.free&&p.enabled&&p.key),[providers]);
 
   function update(id,patch){setProviders(ps=>ps.map(p=>p.id===id?{...p,...patch}:p))}
   function toggle(id){setProviders(ps=>ps.map(p=>p.id===id?{...p,enabled:!p.enabled}:p))}
   function clearKey(id){update(id,{key:"",enabled:false});setModels(ms=>({...ms,[id]:[]}));setNotice("Đã xoá API key khỏi trình duyệt.");}
+  function newProject(){const p={id:Date.now().toString(),name:"Dự án mới",description:"",blueprint:"",github:"",vercel:"",updatedAt:new Date().toISOString()};setProjects(x=>[p,...x]);setActiveProject(p.id);setProject(p.name);setMessages([]);setLogs([]);setPreview("");setNotice("Đã tạo dự án mới.");}
+  function saveProject(){const p={id:activeProject||Date.now().toString(),name:project||"Dự án chưa đặt tên",description:prompt,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),github:"",vercel:preview,updatedAt:new Date().toISOString()};setProjects(xs=>{const i=xs.findIndex(x=>x.id===p.id);if(i<0)return[p,...xs];const a=[...xs];a[i]={...a[i],...p};return a});setActiveProject(p.id);setNotice("✓ Đã lưu dự án.");}
+  function openProject(p){setActiveProject(p.id);setProject(p.name);setPreview(p.vercel||"");setNotice("Đã mở "+p.name+".");}
 
   async function testProvider(p){
     if(!p.key){setNotice("Nhập API key trước.");return}
@@ -77,7 +85,7 @@ export default function Home(){
     const user=prompt.trim(); setPrompt(""); setMessages(m=>[...m,{role:"user",content:user}]); setBusy(true);
     setLogs(l=>[...l,"Router: bắt đầu xử lý yêu cầu..."]);
     try{
-      const payload={action:"chat",prompt:user,providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected};
+      const payload={action:"chat",mode,prompt:user,providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected};
       const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});
       const data=await r.json();
       if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
@@ -94,7 +102,7 @@ export default function Home(){
       <div className="brand"><div className="logo">AI</div><div><b>AI Software Factory</b><span>Build • Review • Ship</span></div></div>
       <div className="nav">
         <button className={tab==="workspace"?"active":""} onClick={()=>setTab("workspace")}>⌘ Workspace</button>
-        <button className={tab==="settings"?"active":""} onClick={()=>setTab("settings")}>⚙ AI Providers</button>
+        <button className={tab==="settings"?"active":""} onClick={()=>setTab("settings")}>⚙ AI Providers</button><div className="project-mini"><div className="project-mini-head"><b>Projects</b><button onClick={newProject}>+</button></div>{projects.slice(0,8).map(p=><button className={activeProject===p.id?"project-item active":"project-item"} key={p.id} onClick={()=>openProject(p)}>{p.name}</button>)}{!projects.length&&<span>Chưa có dự án</span>}</div>
       </div>
       <div className="side-foot">Keys are stored locally in this browser. Never commit API keys to GitHub.</div>
     </aside>
@@ -102,12 +110,12 @@ export default function Home(){
       <header className="topbar"><div className="status"><span className="dot"/>{enabled.length} provider sẵn sàng</div><div className="row"><button className="btn" onClick={()=>setTab("settings")}>Manage AI</button></div></header>
       <div className="content">
         {tab==="workspace"?<section className="workspace">
-          <div className="hero"><div><div className="eyebrow">AI orchestration workspace</div><h1>Build your software with multiple AIs.</h1><p>Nhập yêu cầu. Router sẽ ưu tiên provider bạn chọn, rồi fallback sang provider khác khi gặp lỗi hoặc giới hạn.</p></div><button className="btn primary" onClick={()=>setTab("settings")}>+ Add AI</button></div>
+          <div className="hero"><div><div className="eyebrow">AI orchestration workspace</div><h1>Build your software with multiple AIs.</h1><p>Nhập yêu cầu. Router sẽ ưu tiên provider bạn chọn, rồi fallback sang provider khác khi gặp lỗi hoặc giới hạn.</p></div><div className="row"><button className="btn" onClick={newProject}>+ New project</button><button className="btn primary" onClick={saveProject}>Save project</button></div></div>
           <div className="grid">
             <div className="card chat">
-              <div className="row" style={{justifyContent:"space-between"}}><div><h2>Build conversation</h2><div className="muted">{project}</div></div><input value={project} onChange={e=>setProject(e.target.value)} style={{width:190,background:"#080d16",border:"1px solid #263047",color:"#eef2ff",padding:"8px 10px",borderRadius:7}}/></div>
+              <div className="row" style={{justifyContent:"space-between"}}><div><h2>Build conversation</h2><div className="muted">{activeProject?"Project saved locally":"Unsaved project"}</div></div><input value={project} onChange={e=>setProject(e.target.value)} style={{width:190,background:"#080d16",border:"1px solid #263047",color:"#eef2ff",padding:"8px 10px",borderRadius:7}}/></div>
               <div className="messages">{messages.length?messages.map((m,i)=><div key={i} className={"msg "+(m.role==="user"?"user":"ai")}><b>{m.role==="user"?"You":"AI Router"}</b><div>{m.content}</div></div>):<div className="empty">Mô tả app/web bạn muốn xây ở ô bên dưới.<br/>Ví dụ: “Tạo dashboard quản lý đơn hàng có đăng nhập, tìm kiếm và biểu đồ.”</div>}</div>
-              <div className="composer">
+              <div className="composer"><div className="field" style={{marginTop:0}}><label>AI workflow</label><select value={mode} onChange={e=>setMode(e.target.value)}><option value="auto">Auto — AI tự phân tích</option><option value="plan">Plan — lập kế hoạch trước</option><option value="build">Build — triển khai</option><option value="review">Review — kiểm tra</option></select></div>
                 <div className="field" style={{marginTop:0}}><label>Router mode</label><select value={selected} onChange={e=>setSelected(e.target.value)}><option value="auto">Auto fallback</option>{enabled.map(p=><option key={p.id} value={p.id}>{p.name} — {p.model||"default"}</option>)}</select></div>
                 <div className="field"><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter")run()}} placeholder="Bạn muốn xây gì? Ctrl/Cmd + Enter để chạy..."/></div>
                 <div className="row" style={{justifyContent:"space-between"}}><span className="muted">{busy?"Router đang gọi AI...":"API keys chỉ được gửi khi bạn bấm Build."}</span><button className="btn primary" disabled={busy} onClick={run}>{busy?"Đang chạy…":"Build with AI"}</button></div>
