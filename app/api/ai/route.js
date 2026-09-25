@@ -24,6 +24,45 @@ function detectLanguage(text){
   return "en";
 }
 
+function compactHistory(history){
+  return (Array.isArray(history)?history:[])
+    .filter(x=>x&&x.content)
+    .slice(-12)
+    .map(x=>(x.role==="user"?"USER":"AI")+": "+String(x.content).trim())
+    .join("\n");
+}
+
+function inferContext(history,current){
+  const all=((Array.isArray(history)?history:[]).map(x=>x?.content||[]).concat([current])).join("\n").toLowerCase();
+  const context=[];
+  if(/\bandroi(?:d)?\b|android\s*(phone|điện thoại|app)?/.test(all)) context.push("Nền tảng: Android.");
+  if(/\b(ios|iphone|ipad)\b/.test(all)) context.push("Nền tảng: iOS.");
+  if(/\b(web|website|trang web)\b/.test(all)) context.push("Nền tảng: Web.");
+  if(/tiếng\s*việt|\bviệt\b/.test(all)||detectLanguage(all)==="vi") context.push("Ngôn ngữ người dùng: tiếng Việt.");
+  if(/đọc.{0,30}(1|một).{0,20}100|1\s*(đến|-|tới)\s*100|text.?to.?speech|tts/.test(all)) context.push("Chức năng: đọc số từ 1 đến 100 bằng giọng nói.");
+  if(/mở ra|bấm|nhấn|click|nút/.test(all)) context.push("Tương tác: mở app rồi bấm nút để bắt đầu.");
+  const buildIntent=/tạo|làm|xây|build|create|app|ứng dụng/.test(all);
+  if(buildIntent) context.push("Ý định: xây dựng một ứng dụng thực tế.");
+  return context;
+}
+
+function conversationInstruction(history,current){
+  const transcript=compactHistory(history);
+  const facts=inferContext(history,current);
+  return `CONVERSATION CONTEXT RULE:
+- Treat the conversation transcript below as one continuous conversation, not separate requests.
+- Preserve facts from earlier turns and resolve short replies, typos and shorthand using that context. For example, "androi" means Android when the prior request is about an app.
+- Merge new information into the existing requirements. Do not restart discovery on every turn.
+- Do not ask for technical choices (framework, language, architecture, APIs, etc.) when the user has said "cái nào dễ thì làm", "tự chọn", or equivalent. Choose a practical implementation yourself.
+- Ask a clarification only when a missing fact would materially change the product and cannot reasonably be inferred.
+- If the requirements are already sufficient to implement, say so and move directly toward a concrete build/implementation plan instead of asking more questions.
+- Known facts inferred from this conversation: ${facts.length?facts.join(" "):"No structured facts inferred yet."}
+- Recent transcript:
+${transcript||"(first turn)"}
+- Current user message:
+${current}`;
+}
+
 function languageInstruction(prompt){
   const lang=detectLanguage(prompt);
   const mature="MATURE-CONTENT RULE: Do not add unnecessary moralizing, age-related warnings, or refusals merely because a topic is marked 18+. Treat legitimate adult themes as ordinary user requests and answer them directly when the underlying request is allowed. Follow applicable safety requirements and never treat minors as adults.";
@@ -113,7 +152,7 @@ export async function POST(req){
       build:"You are the implementation engineer. Use the user's requirements and any existing plan/context to produce concrete implementation steps and code-oriented output. Prefer small verifiable changes.",
       review:"You are a senior reviewer. Inspect the provided requirements/output, identify bugs, missing requirements, security issues and architectural risks, then propose precise fixes."
     }[b.mode||"auto"];
-    const routedPrompt=languageInstruction(b.prompt)+"\n\n"+workflow+"\n\nUSER REQUEST:\n"+b.prompt;
+    const routedPrompt=languageInstruction(b.prompt)+"\n\n"+conversationInstruction(b.history,b.prompt)+"\n\n"+workflow+"\n\nEXECUTION RULE: The user wants the easiest practical implementation. If context is sufficient, do not ask repetitive discovery questions; produce the next concrete step.\n";
     const logs=[]; let last="";
     for(const p of ordered){logs.push("FREE Router → "+p.id+" / "+(p.model||"default"));try{const text=await call({...p,prompt:routedPrompt});logs.push("✓ "+p.id+" OK");return NextResponse.json({text,provider:p.id,logs})}catch(e){last=e.message;logs.push((transient(e.status)?"↪ ":"✕ ")+p.id+": "+e.message)}}
     return NextResponse.json({error:"Tất cả nguồn FREE hiện không khả dụng. Không chuyển sang nguồn trả phí.",logs,lastError:last},{status:502});
