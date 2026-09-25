@@ -146,7 +146,6 @@ export default function Home(){
 
   async function run(){
     if(!prompt.trim()||busy)return;
-    if(!enabled.length){setNotice("Chưa có AI FREE provider nào được bật và có key.");setTab("settings");return}
     const user=prompt.trim();
     const history=messages.slice(-12);
     const hasCurrentProduct=Boolean(previewHtml);
