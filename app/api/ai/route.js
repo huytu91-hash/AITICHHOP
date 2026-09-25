@@ -150,7 +150,22 @@ export async function POST(req){
 "- Use accessible labels, semantic controls, keyboard support where appropriate, and visible focus states.\n"+
 "- The first screen must immediately communicate what the product does and what the user should do next.\n"+
 "- If the request is underspecified, make sensible product decisions instead of shrinking the app into a generic demo.\n\n"+
-"VISUAL QUALITY BAR:\n"+
+"PREMIUM PRODUCT DIRECTION:\n"+
+"- Default to a premium, contemporary visual language comparable to polished consumer apps and modern SaaS products. Favor strong composition, visual hierarchy and intentional details over generic templates.\n"+
+"- Use a distinctive hero/header area, purposeful navigation, meaningful cards or panels, refined controls and clear primary actions.\n"+
+"- Use a restrained color palette with one strong accent, excellent contrast and subtle depth. Do not rely on random gradients.\n"+
+"- Use CSS variables for the design system and keep the palette coherent across every screen.\n"+
+"- Use 8px-style spacing rhythm, consistent corner radii and realistic typography sizing.\n"+
+"- Add small details that make the product feel authored: status chips, avatars/initials, progress indicators, timestamps, contextual helper text, section labels, dividers, selected states and confirmation feedback when relevant.\n"+
+"- Use inline SVG icons with consistent stroke/fill treatment rather than text glyphs for important navigation or actions.\n"+
+"- Prefer composed layouts with asymmetry, grids, split panels, bottom sheets, tabs or timelines when the product calls for them. Avoid a stack of identical cards.\n"+
+"- For mobile apps, create a convincing app shell with top bar, bottom navigation or contextual navigation, safe spacing and touch-friendly controls.\n"+
+"- For games, create a visually rich game scene: title art made with CSS/SVG, character/avatar treatment, HUD, progress, animated feedback, reward states, polished start/result screens and tactile controls. The game should look like a real mini-game, not a quiz form.\n"+
+"- For children’s games, use friendly illustrations made from CSS/SVG/emoji, large touch targets, joyful feedback and simple but polished visual storytelling.\n"+
+"- For business apps, use realistic operational data, meaningful charts made with CSS/SVG, tables/lists, filters and clear status semantics.\n"+
+"- For ecommerce/content apps, use product/content imagery simulated with polished CSS/SVG compositions, strong cards, pricing/meta hierarchy and clear conversion actions.\n"+
+"- Use layered surfaces, subtle shadows and borders sparingly to create depth. Avoid flat white boxes everywhere.\n"+
+"- Include at least one visually memorable signature element appropriate to the product.\n\n"+"VISUAL QUALITY BAR:\n"+
 "- Aim for the visual density and polish of a modern production app: strong header/navigation, intentional spacing, layered surfaces, clear primary CTA, useful secondary actions, realistic content and responsive composition.\n"+
 "- Do not make every section look like the same generic rounded card. Mix headers, lists, stats, controls, tabs, panels, sheets and content areas when appropriate.\n"+
 "- Avoid giant empty spaces, tiny text, excessive gradients, default browser controls and obviously AI-generated placeholder layouts.\n\n"+
