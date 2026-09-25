@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const starterFiles = {
   "app/page.html": "<!doctype html>\n<html lang=\"vi\">\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>New Project</title></head>\n<body><main><h1>New Project</h1><p>Bắt đầu bằng yêu cầu ở Agent.</p></main></body>\n</html>",
@@ -10,7 +10,7 @@ const starterFiles = {
 };
 
 export default function EngineeringWorkspace({ prompt, setPrompt, onBuild, busy, previewHtml, setPreviewHtml, logs, setLogs }) {
-  const [files, setFiles] = useState(starterFiles);
+  const [files, setFiles] = useState(()=>{try{return JSON.parse(localStorage.getItem("asf.ide.files")||"null")||starterFiles}catch{return starterFiles}});
   const [activeFile, setActiveFile] = useState("app/page.html");
   const [tab, setTab] = useState("code");
   const [terminal, setTerminal] = useState(["$ workspace init","✓ Local project workspace ready","✓ Live Preview sandbox available"]);
@@ -21,6 +21,7 @@ export default function EngineeringWorkspace({ prompt, setPrompt, onBuild, busy,
   const code = files[activeFile] || "";
   const fileList = Object.keys(files);
   const changed = useMemo(() => history.length, [history]);
+  useEffect(()=>{try{localStorage.setItem("asf.ide.files",JSON.stringify(files))}catch{}},[files]);
 
   function updateCode(value){
     setHistory(h=>[...h,{file:activeFile,before:files[activeFile]||"",after:value,time:new Date().toISOString()}]);
@@ -64,7 +65,7 @@ export default function EngineeringWorkspace({ prompt, setPrompt, onBuild, busy,
   }
 
   function command(){
-    setTerminal(t=>[...t,"$ status","branch: local-workspace","files: "+fileList.length,"changes: "+changed,"preview: "+(previewHtml?"ready":"not built")]);
+    setTerminal(t=>[...t,"$ status","workspace: browser-local","files: "+fileList.length,"changes: "+changed,"preview: "+(previewHtml?"ready":"not built"),"note: no server shell is executed from this browser workspace"]);
   }
 
   return <section className="ide">
@@ -72,7 +73,7 @@ export default function EngineeringWorkspace({ prompt, setPrompt, onBuild, busy,
       <div><div className="eyebrow">Engineering workspace</div><h1>AI Code Studio</h1><p>Agent + Code + Diff + Preview trong một workspace.</p></div>
       <div className="row">
         <span className={"ide-status "+(status==="Error"?"bad":status==="Built"||status==="Preview running"?"good":"")}>{status}</span>
-        <button className="btn" onClick={command}>Run checks</button>
+        <button className="btn" onClick={command}>Workspace status</button>
         <button className="btn primary" disabled={agentBusy||busy} onClick={agentBuild}>{agentBusy?"Agent đang làm…":"✦ Agent Build"}</button>
       </div>
     </div>
