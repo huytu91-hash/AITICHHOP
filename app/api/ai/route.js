@@ -58,6 +58,7 @@ async function call(p){
 export async function POST(req){
   try{
     const b=await req.json();
+    if(b.action==="media"){return NextResponse.json({error:"Media provider chưa được bật trong bản build này."},{status:501})}
     if(b.action==="models"){b.provider=normalizeProvider(b.provider);if(!FREE.has(b.provider))return NextResponse.json({error:"Chỉ cho phép FREE provider."},{status:403});return NextResponse.json({ok:true,models:await models(b.provider,b.key)})}
     if(b.action==="build"){
       const list=(b.providers||[]).filter(x=>x?.key&&FREE.has(x.id));
