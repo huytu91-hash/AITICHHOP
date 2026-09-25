@@ -102,9 +102,9 @@ export default function Home(){
   }
   function deleteChat(id){setChatSessions(x=>x.filter(c=>c.id!==id));if(activeChat===id){setActiveChat("");setMessages([]);setLogs([])}}
 
-  async function apiBuild(user,history){
+  async function apiBuild(user,history,existingHtml=""){
     const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
-      action:"build",prompt:user,history,providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected
+      action:"build",prompt:user,history,providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected,existingHtml
     })});
     const data=await r.json();
     if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
