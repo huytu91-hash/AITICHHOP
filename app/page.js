@@ -37,9 +37,21 @@ export default function Home(){
   const [mode,setMode]=useState("auto");
   const [projects,setProjects]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.projects")||"[]")}catch{return []}});
   const [activeProject,setActiveProject]=useState("");
+  const [mediaType,setMediaType]=useState("image");
+  const [mediaPrompt,setMediaPrompt]=useState("");
+  const [mediaHistory,setMediaHistory]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.media")||"[]")}catch{return []}});
+  const [mediaBusy,setMediaBusy]=useState(false);
 
   useEffect(()=>localStorage.setItem("asf.providers",JSON.stringify(providers)),[providers]);
   useEffect(()=>localStorage.setItem("asf.projects",JSON.stringify(projects)),[projects]);
+  useEffect(()=>localStorage.setItem("asf.media",JSON.stringify(mediaHistory)),[mediaHistory]);
+  useEffect(()=>{
+    if(!activeProject)return;
+    const t=setTimeout(()=>{
+      setProjects(xs=>xs.map(p=>p.id===activeProject?{...p,name:project||"Dự án chưa đặt tên",description:prompt,vercel:preview,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),updatedAt:new Date().toISOString()}:p));
+    },700);
+    return()=>clearTimeout(t);
+  },[project,prompt,preview,messages,activeProject]);
   useEffect(()=>{if(!activeProject&&projects[0])setActiveProject(projects[0].id)},[projects,activeProject]);
 
   const enabled=useMemo(()=>providers.filter(p=>p.free&&p.enabled&&p.key),[providers]);
@@ -49,7 +61,24 @@ export default function Home(){
   function clearKey(id){update(id,{key:"",enabled:false});setModels(ms=>({...ms,[id]:[]}));setNotice("Đã xoá API key khỏi trình duyệt.");}
   function newProject(){const p={id:Date.now().toString(),name:"Dự án mới",description:"",blueprint:"",github:"",vercel:"",updatedAt:new Date().toISOString()};setProjects(x=>[p,...x]);setActiveProject(p.id);setProject(p.name);setMessages([]);setLogs([]);setPreview("");setNotice("Đã tạo dự án mới.");}
   function saveProject(){const p={id:activeProject||Date.now().toString(),name:project||"Dự án chưa đặt tên",description:prompt,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),github:"",vercel:preview,updatedAt:new Date().toISOString()};setProjects(xs=>{const i=xs.findIndex(x=>x.id===p.id);if(i<0)return[p,...xs];const a=[...xs];a[i]={...a[i],...p};return a});setActiveProject(p.id);setNotice("✓ Đã lưu dự án.");}
-  function openProject(p){setActiveProject(p.id);setProject(p.name);setPreview(p.vercel||"");setNotice("Đã mở "+p.name+".");}
+  function openProject(p){setActiveProject(p.id);setProject(p.name);setPreview(p.vercel||"");setPrompt(p.description||"");setMessages(p.blueprint?[{role:"assistant",content:p.blueprint}]:[]);setLogs([]);setNotice("Đã mở "+p.name+".");}
+  function deleteProject(id){
+    const p=projects.find(x=>x.id===id); if(!p)return;
+    if(!window.confirm("Xóa dự án "+p.name+"? Hành động này không thể hoàn tác."))return;
+    const next=projects.filter(x=>x.id!==id); setProjects(next);
+    const nextActive=next[0]?.id||"";
+    setActiveProject(nextActive);
+    if(next[0])openProject(next[0]);else{setProject("Untitled Project");setPrompt("");setMessages([]);setPreview("");}
+    setNotice("Đã xóa dự án.");
+  }
+  async function generateMedia(){
+    if(!mediaPrompt.trim()||mediaBusy)return;
+    setMediaBusy(true);
+    const item={id:Date.now().toString(),type:mediaType,prompt:mediaPrompt.trim(),status:"queued",createdAt:new Date().toISOString()};
+    setMediaHistory(x=>[item,...x]);
+    setNotice("Media Studio hiện đã sẵn sàng về giao diện và lịch sử; nguồn API FREE vĩnh viễn cho tạo ảnh/video chưa đủ điều kiện để tự động gọi.");
+    setMediaBusy(false);
+  }
 
   async function testProvider(p){
     if(!p.key){setNotice("Nhập API key trước.");return}
@@ -102,7 +131,8 @@ export default function Home(){
       <div className="brand"><div className="logo">AI</div><div><b>AI Software Factory</b><span>Build • Review • Ship</span></div></div>
       <div className="nav">
         <button className={tab==="workspace"?"active":""} onClick={()=>setTab("workspace")}>⌘ Workspace</button>
-        <button className={tab==="settings"?"active":""} onClick={()=>setTab("settings")}>⚙ AI Providers</button><div className="project-mini"><div className="project-mini-head"><b>Projects</b><button onClick={newProject}>+</button></div>{projects.slice(0,8).map(p=><button className={activeProject===p.id?"project-item active":"project-item"} key={p.id} onClick={()=>openProject(p)}>{p.name}</button>)}{!projects.length&&<span>Chưa có dự án</span>}</div>
+        <button className={tab==="media"?"active":""} onClick={()=>setTab("media")}>✦ AI Media Studio</button>
+        <button className={tab==="settings"?"active":""} onClick={()=>setTab("settings")}>⚙ AI Providers</button><div className="project-mini"><div className="project-mini-head"><b>Projects</b><button onClick={newProject}>+</button></div>{projects.slice(0,8).map(p=><div className="project-row" key={p.id}><button className={activeProject===p.id?"project-item active":"project-item"} onClick={()=>openProject(p)}>{p.name}</button><button className="project-delete" title="Xóa dự án" onClick={()=>deleteProject(p.id)}>×</button></div>)}{!projects.length&&<span>Chưa có dự án</span>}</div>
       </div>
       <div className="side-foot">Keys are stored locally in this browser. Never commit API keys to GitHub.</div>
     </aside>
@@ -127,6 +157,18 @@ export default function Home(){
               <div className="review"><div className="metric"><b>{enabled.length}</b><span>AI providers</span></div><div className="metric"><b>{messages.length}</b><span>Messages</span></div><div className="metric"><b>{logs.length}</b><span>Router logs</span></div></div>
               <h2 style={{marginTop:22}}>Pipeline logs</h2><div className="logs">{logs.length?logs.slice(-12).map((x,i)=><div className="log" key={i}>{x}</div>):<div className="log">Router idle.</div>}</div>
             </div>
+          </div>
+        </section>:tab==="media"?<section className="settings">
+          <div className="hero"><div><div className="eyebrow">Creative workspace</div><h1>AI Media Studio</h1><p>Tạo ảnh và video bằng AI, lưu lịch sử theo từng dự án và giữ workflow chung với AI Software Factory.</p></div><button className="btn" onClick={()=>{setMediaPrompt("");setNotice("Đã tạo phiên media mới.")}}>+ New media</button></div>
+          {notice&&<div className="card" style={{marginBottom:14}}>{notice}</div>}
+          <div className="grid">
+            <div className="card">
+              <div className="row" style={{gap:8}}><button className={"btn "+(mediaType==="image"?"primary":"")} onClick={()=>setMediaType("image")}>▧ Tạo ảnh</button><button className={"btn "+(mediaType==="video"?"primary":"")} onClick={()=>setMediaType("video")}>▶ Tạo video</button></div>
+              <div className="field"><label>Mô tả</label><textarea value={mediaPrompt} onChange={e=>setMediaPrompt(e.target.value)} placeholder={mediaType==="image"?"Ví dụ: Phòng khách hiện đại, ánh sáng tự nhiên, ảnh kiến trúc chân thực...":"Ví dụ: Camera dolly chậm qua phòng khách, ánh sáng buổi chiều, cinematic..."}/></div>
+              <div className="field"><label>Ảnh tham chiếu (tuỳ chọn)</label><input type="file" accept="image/*,video/*"/></div>
+              <div className="row" style={{justifyContent:"space-between"}}><span className="muted">Chỉ sử dụng nguồn API FREE hợp lệ.</span><button className="btn primary" disabled={mediaBusy} onClick={generateMedia}>{mediaBusy?"Đang xử lý…":"Generate "+(mediaType==="image"?"Image":"Video")}</button></div>
+            </div>
+            <div className="card"><h2>Media history</h2><div className="muted">Tự động lưu trong trình duyệt.</div><div className="logs">{mediaHistory.length?mediaHistory.slice(0,12).map(x=><div className="log" key={x.id}><b>{x.type==="image"?"IMAGE":"VIDEO"}</b> · {x.prompt}<br/><span className="muted">{new Date(x.createdAt).toLocaleString("vi-VN")} · {x.status}</span></div>):<div className="log">Chưa có media.</div>}</div></div>
           </div>
         </section>:<section className="settings">
           <div className="hero"><div><div className="eyebrow">Settings</div><h1>AI Providers</h1><p>Nhập key trực tiếp trong app. Key được lưu trong localStorage của trình duyệt hiện tại và không được ghi vào GitHub.</p></div><button className="btn" onClick={()=>setNotice("FREE ONLY: Gemini, Groq và OpenRouter. Không dùng API trả phí.")}>+ Custom provider</button></div>
