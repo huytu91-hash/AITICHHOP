@@ -124,6 +124,20 @@ export default function Home(){
     const editIntent=hasCurrentProduct && /\b(chỉnh|sửa|thêm|bớt|xóa|xoá|đổi|thay|bỏ|gỡ|nút|giao diện|tính năng|màu|font|nội dung|layout|màn hình)\b/i.test(user);
     setPrompt("");setMessages(m=>[...m,{role:"user",content:user}]);setBusy(true);
     setLogs(l=>[...l,"Factory: hiểu yêu cầu → chọn AI → build → preview"]);
+    if(vagueEdit){
+      setMessages(m=>[...m,{role:"assistant",content:"Được. App hiện tại đang nằm trong Live Preview. Mày cứ nói muốn sửa gì, Factory sẽ sửa trực tiếp app này, không tạo app mới."}]);
+      setNotice("✓ Giữ nguyên app hiện tại. Nói yêu cầu chỉnh sửa tiếp theo.");
+      return;
+    }
+    if(editIntent){
+      try{
+        await apiBuild(user,[...history,{role:"user",content:user}],previewHtml);
+      }catch(e){
+        setMessages(m=>[...m,{role:"assistant",content:"Lỗi: "+e.message}]);
+        setNotice("✕ "+e.message);
+      }finally{setBusy(false)}
+      return;
+    }
     try{
       const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"chat",mode:"auto",prompt:user,history,providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected})});
       const data=await r.json();if(data.logs?.length)setLogs(l=>[...l,...data.logs]);if(!r.ok)throw new Error(data.error||"AI request failed");
