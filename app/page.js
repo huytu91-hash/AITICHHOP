@@ -127,6 +127,7 @@ export default function Home(){
     if(vagueEdit){
       setMessages(m=>[...m,{role:"assistant",content:"Được. App hiện tại đang nằm trong Live Preview. Mày cứ nói muốn sửa gì, Factory sẽ sửa trực tiếp app này, không tạo app mới."}]);
       setNotice("✓ Giữ nguyên app hiện tại. Nói yêu cầu chỉnh sửa tiếp theo.");
+      setBusy(false);
       return;
     }
     if(editIntent){
