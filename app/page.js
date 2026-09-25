@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const DEFAULTS=[
   {id:"google",name:"Google Gemini — FREE",model:"gemini-2.5-flash",placeholder:"AIza...",enabled:false,keyUrl:"https://aistudio.google.com/app/apikey",free:true},
@@ -43,6 +43,93 @@ export default function Home(){
   const [mediaHistory,setMediaHistory]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.media")||"[]")}catch{return []}});
   const [mediaBusy,setMediaBusy]=useState(false);
   const [pipeline,setPipeline]=useState(["idle","idle","idle","idle"]);
+  const [approval,setApproval]=useState(null);
+  const messagesRef=useRef(null);
+  const stickToBottomRef=useRef(true);
+
+  useEffect(()=>{
+    const el=messagesRef.current;
+    if(!el||!stickToBottomRef.current)return;
+    requestAnimationFrame(()=>{el.scrollTop=el.scrollHeight});
+  },[messages,busy]);
+
+  function handleMessagesScroll(){
+    const el=messagesRef.current;
+    if(!el)return;
+    const distance=el.scrollHeight-el.scrollTop-el.clientHeight;
+    stickToBottomRef.current=distance<70;
+  }
+  function jumpToLatest(){
+    const el=messagesRef.current;
+    if(!el)return;
+    stickToBottomRef.current=true;
+    el.scrollTo({top:el.scrollHeight,behavior:"smooth"});
+  }
+  function localGamePlan(user){
+    return `KỊCH BẢN GAME — CHỜ DUYỆT
+
+Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
+
+1. Gameplay
+• Một câu hỏi/nhiệm vụ xuất hiện trên màn hình.
+• Bé chọn bằng cách chạm vào đáp án lớn, rõ ràng.
+• Đúng → hiệu ứng vui + đọc lời khen + cộng sao.
+• Sai → báo nhẹ nhàng, chỉ ra đáp án đúng và cho chơi lại.
+
+2. Nội dung học tập
+• Ưu tiên nhận biết hình, màu, số và đếm; có thể mở rộng chữ cái/con vật theo yêu cầu.
+• Mỗi lượt có câu hỏi mới, tăng nhẹ độ khó.
+• Có tiến độ và điểm/số sao để bé biết mình đang làm tốt.
+
+3. Giao diện
+• Màu sắc thân thiện, chữ lớn, nút lớn, phù hợp màn hình cảm ứng.
+• Không dùng thao tác kéo-thả bằng chuột làm cơ chế chính.
+• Có âm thanh/đọc tiếng Việt bằng SpeechSynthesis nếu trình duyệt cho phép.
+
+4. Cần kiểm tra trước khi build
+• Đáp án đúng phải được đánh dấu đúng tuyệt đối.
+• Không để trạng thái câu trước làm sai câu sau.
+• Nút tiếp theo/reset phải hoạt động.
+• Có phản hồi đúng/sai rõ ràng.
+
+5. Phiên bản đầu
+• Build thành một game HTML tự chạy trong Live Preview, không cần API trả phí.
+• Sau khi mày duyệt kịch bản này, Factory mới bắt đầu Build.`;
+  }
+
+  async function requestGamePlan(user,history){
+    setPipeline(["done","running","idle","idle"]);
+    const fallback=localGamePlan(user);
+    if(!enabled.length){
+      setMessages(m=>[...m,{role:"assistant",content:fallback}]);
+      setApproval({prompt:user,plan:fallback});
+      setNotice("✓ Đã lên kịch bản. Chưa build — chờ mày đồng ý.");
+      setPipeline(["done","done","idle","idle"]);
+      return;
+    }
+    try{
+      const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
+        action:"chat",mode:"plan",
+        prompt:user,
+        history,
+        providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),
+        selected
+      })});
+      const data=await r.json();
+      if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
+      const plan=data.text||fallback;
+      const planText="KỊCH BẢN GAME — CHỜ DUYỆT\\n\\n"+plan+"\\n\\n---\\nSau khi mày đồng ý, Factory mới bắt đầu Build.";
+      setMessages(m=>[...m,{role:"assistant",content:planText}]);
+      setApproval({prompt:user,plan:planText});
+      setNotice("✓ Đã lên kịch bản. Chưa build — chờ mày đồng ý.");
+      setPipeline(["done","done","idle","idle"]);
+    }catch(e){
+      setMessages(m=>[...m,{role:"assistant",content:fallback+"\\n\\nAI Planner tạm unavailable nên đang dùng kịch bản chuẩn Local Planner."}]);
+      setApproval({prompt:user,plan:fallback});
+      setNotice("✓ AI Planner không khả dụng. Đã dùng Local Planner; chưa build.");
+      setPipeline(["done","done","idle","idle"]);
+    }
+  }
 
   useEffect(()=>{localStorage.setItem("asf.providers",JSON.stringify(providers));window.__ASF_PROVIDERS__=providers.filter(p=>p.free&&p.enabled&&p.key).map(p=>({id:p.id,key:p.key,model:p.model}));},[providers]);
   useEffect(()=>localStorage.setItem("asf.projects",JSON.stringify(projects)),[projects]);
@@ -149,10 +236,41 @@ export default function Home(){
     const user=prompt.trim();
     const history=messages.slice(-12);
     const hasCurrentProduct=Boolean(previewHtml);
+    const gameIntent=/\b(game|trò chơi|trò chơi cho bé|game cho bé|game giáo dục|game học tập|mini game)\b/i.test(user);
+    const approveIntent=/^(đồng ý|ok|oke|okay|được|chốt|build đi|xây đi|triển khai|làm đi|tiến hành|yes)\b[.!\s]*/i.test(user);
     const vagueEdit=/^(chỉnh sửa được không|sửa được không|có chỉnh sửa được không|edit được không|có sửa được không)[?!.,\s]*$/i.test(user);
     const editIntent=hasCurrentProduct && /\b(chỉnh|sửa|thêm|bớt|xóa|xoá|đổi|thay|bỏ|gỡ|nút|giao diện|tính năng|màu|font|nội dung|layout|màn hình)\b/i.test(user);
     setPrompt("");setMessages(m=>[...m,{role:"user",content:user}]);setBusy(true);
-    setLogs(l=>[...l,"Factory: hiểu yêu cầu → chọn AI → build → preview"]);
+    stickToBottomRef.current=true;
+    setLogs(l=>[...l,"Factory: hiểu yêu cầu → kiểm tra kịch bản → chờ duyệt hoặc build"]);
+    if(approval&&approveIntent){
+      const approvedPrompt=approval.prompt;
+      setApproval(null);
+      try{
+        setPipeline(["done","done","running","running"]);
+        await apiBuild(approvedPrompt,[...history,{role:"user",content:user},{role:"assistant",content:approval.plan}],previewHtml);
+        setPipeline(["done","done","done","done"]);
+        setMessages(m=>[...m,{role:"assistant",content:"✓ Đã được duyệt. Factory đã bắt đầu build theo đúng kịch bản trên và đưa game vào Live Preview."}]);
+      }catch(e){
+        setMessages(m=>[...m,{role:"assistant",content:"Lỗi build: "+e.message}]);
+        setNotice("✕ "+e.message);
+        setPipeline(["done","done","error","idle"]);
+      }finally{setBusy(false)}
+      return;
+    }
+    if(gameIntent&&!hasCurrentProduct){
+      try{
+        await requestGamePlan(user,[...history,{role:"user",content:user}]);
+      }finally{setBusy(false)}
+      return;
+    }
+    if(approval&&!approveIntent){
+      const refinement="Kịch bản đang chờ duyệt. Yêu cầu bổ sung của mày: "+user;
+      try{
+        await requestGamePlan(approval.prompt,[...history,{role:"user",content:refinement}]);
+      }finally{setBusy(false)}
+      return;
+    }
     if(vagueEdit){
       setMessages(m=>[...m,{role:"assistant",content:"Được. App hiện tại đang nằm trong Live Preview. Mày cứ nói muốn sửa gì, Factory sẽ sửa trực tiếp app này, không tạo app mới."}]);
       setNotice("✓ Giữ nguyên app hiện tại. Nói yêu cầu chỉnh sửa tiếp theo.");
@@ -236,7 +354,7 @@ export default function Home(){
           <div className="factory-grid">
             <div className="card chat factory-chat">
               <div className="factory-head"><div><h2>AI Factory</h2><div className="muted">Conversation + build agent hợp nhất</div></div><input value={project} onChange={e=>setProject(e.target.value)} /></div>
-              <div className="messages">{messages.length?messages.map((m,i)=><div key={i} className={"msg "+(m.role==="user"?"user":m.role==="system"?"system":"ai")}><b>{m.role==="user"?"Bạn":m.role==="system"?"Factory":"AI"} </b><div>{m.content}</div></div>):<div className="empty"><strong>Hãy nói app mày muốn làm.</strong><br/>Ví dụ: “Tạo app Android mở lên có nút bấm, bấm vào thì đọc số từ 1 đến 100 bằng tiếng Việt.”<br/><br/>Factory sẽ giữ platform, tự chọn công nghệ phù hợp và đưa kết quả sang Preview.</div>}</div>
+              <div className="messages" ref={messagesRef} onScroll={handleMessagesScroll}>{messages.length?messages.map((m,i)=><div key={i} className={"msg "+(m.role==="user"?"user":m.role==="system"?"system":"ai")}><b>{m.role==="user"?"Bạn":m.role==="system"?"Factory":"AI"} </b><div>{m.content}</div></div>):<div className="empty"><strong>Hãy nói app mày muốn làm.</strong><br/>Ví dụ: “Tạo app Android mở lên có nút bấm, bấm vào thì đọc số từ 1 đến 100 bằng tiếng Việt.”<br/><br/>Factory sẽ giữ platform, tự chọn công nghệ phù hợp và đưa kết quả sang Preview.</div>}</div>
               <div className="composer">
                 <div className="field"><label>AI Router</label><select value={selected} onChange={e=>setSelected(e.target.value)}><option value="auto">Auto fallback — FREE</option>{enabled.map(p=><option key={p.id} value={p.id}>{p.name} · {p.model}</option>)}</select></div>
                 <div className="field"><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter")run()}} placeholder="Nói thẳng thứ mày muốn xây… ví dụ: tạo app Android đọc 1–100 bằng tiếng Việt."/></div>
@@ -248,7 +366,7 @@ export default function Home(){
               <div className="preview-head"><div><h2>Live Preview</h2><div className="muted">{previewType==="device-simulator"?"Device Simulator":previewType==="web-live"?"Web Runtime":"Universal Runtime"} · {platform.toUpperCase()}</div></div><div className="row">{previewHtml&&<><span className="pill ok">● RUNNING</span><button className="btn" onClick={downloadSource}>↓ Source</button></>}</div></div>
               {previewHtml?<div className={"live-frame "+(previewType==="device-simulator"?"device-preview":"")}><div className="live-frame-head"><b>{previewType==="device-simulator"?"DEVICE SIMULATOR":platform==="web"?"WEB APP":"LIVE APP"}</b><span>Interactive · Universal Preview</span></div><iframe title="AI Factory Live Preview" srcDoc={previewHtml} sandbox="allow-scripts allow-forms allow-modals"/></div>:preview?<div className="live-frame"><div className="live-frame-head"><b>DEPLOYED</b><a href={preview} target="_blank" rel="noreferrer">Mở ↗</a></div><iframe title="Deployed Preview" src={preview}/></div>:<div className="preview-empty"><div><div className="preview-icon">◫</div><strong>Preview sẽ xuất hiện ở đây</strong><p>Chỉ cần nói app mày muốn làm. Factory sẽ tự build và render sản phẩm tại đây.</p></div></div>}
               <div className="review"><div className="metric"><b>{enabled.length}</b><span>FREE AI</span></div><div className="metric"><b>{messages.filter(x=>x.role==="user").length}</b><span>Yêu cầu</span></div><div className="metric"><b>{logs.length}</b><span>Pipeline</span></div></div>
-              <div className="pipeline"><div className="pipeline-title">FACTORY PIPELINE</div>{["Understand","Build","Verify","Preview"].map((x,i)=><div className={"pipeline-step "+(pipeline[i]==="running"?"running":pipeline[i]==="done"?"done":pipeline[i]==="error"?"error":"")} key={x}><span>{pipeline[i]==="done"?"✓":i+1}</span>{x}</div>)}</div>{versions.length>0&&<div className="version-strip"><div className="row" style={{justifyContent:"space-between"}}><b>CHECKPOINTS</b><span className="muted">{versions.length} phiên bản</span></div><div className="version-list">{versions.slice().reverse().map(v=><button className="version-btn" key={v.id} onClick={()=>rollbackVersion(v)}>v{v.number} · {v.source} · {new Date(v.createdAt).toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})}</button>)}</div></div>}
+              <div className="pipeline"><div className="pipeline-title">FACTORY PIPELINE</div>{["Understand","Plan","Build","Preview"].map((x,i)=><div className={"pipeline-step "+(pipeline[i]==="running"?"running":pipeline[i]==="done"?"done":pipeline[i]==="error"?"error":"")} key={x}><span>{pipeline[i]==="done"?"✓":i+1}</span>{x}</div>)}</div>{versions.length>0&&<div className="version-strip"><div className="row" style={{justifyContent:"space-between"}}><b>CHECKPOINTS</b><span className="muted">{versions.length} phiên bản</span></div><div className="version-list">{versions.slice().reverse().map(v=><button className="version-btn" key={v.id} onClick={()=>rollbackVersion(v)}>v{v.number} · {v.source} · {new Date(v.createdAt).toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})}</button>)}</div></div>}
             </div>
           </div>
           <div className="card logs-card"><div className="row" style={{justifyContent:"space-between"}}><h2>Factory logs</h2><span className="muted">Không dùng AI trả phí</span></div><div className="logs">{logs.length?logs.slice(-16).map((x,i)=><div className="log" key={i}>{x}</div>):<div className="log">Factory idle.</div>}</div></div>
