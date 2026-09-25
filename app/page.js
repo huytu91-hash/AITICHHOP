@@ -28,7 +28,7 @@ export default function Home(){
   const [project,setProject]=useState("Untitled Project");
   const [preview,setPreview]=useState("");
   const [previewHtml,setPreviewHtml]=useState("");
-  const [previewType,setPreviewType]=useState("web-live");
+  const [previewType,setPreviewType]=useState("universal");
   const [platform,setPlatform]=useState("web");
   const [notice,setNotice]=useState("");
   const [models,setModels]=useState({});
@@ -81,7 +81,7 @@ export default function Home(){
     setNotice("Đã mở cuộc trò chuyện mới.");
   }
   function openProject(p){
-    setActiveProject(p.id);setProject(p.name);setPreview(p.vercel||"");setPreviewHtml(p.previewHtml||"");setPreviewType(p.previewType||"web-live");setPlatform(p.platform||"web");setPrompt(p.description||"");
+    setActiveProject(p.id);setProject(p.name);setPreview(p.vercel||"");setPreviewHtml(p.previewHtml||"");setPreviewType(p.previewType||"universal");setPlatform(p.platform||"web");setPrompt(p.description||"");
     setMessages(p.blueprint?[{role:"assistant",content:p.blueprint}]:[]);setLogs([]);setNotice("Đã mở "+p.name+".");
   }
   function openChat(chat){
@@ -109,7 +109,7 @@ export default function Home(){
     const data=await r.json();
     if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
     if(!r.ok)throw new Error(data.error||"Không tạo được preview");
-    setPreviewHtml(data.html);setPreview("");setPreviewType(data.previewType||"web-live");setPlatform(data.platform||"web");
+    setPreviewHtml(data.html);setPreview("");setPreviewType(data.previewType||"universal");setPlatform(data.platform||"web");
     setMessages(m=>[...m,{role:"system",content:"✓ Đã build và đưa sản phẩm vào Live Preview bằng "+data.provider+" · "+(data.platform||"web").toUpperCase()}]);
     setNotice("✓ Đã triển khai. Preview đã được cập nhật.");
   }
@@ -187,8 +187,8 @@ export default function Home(){
             </div>
 
             <div className="card preview-card">
-              <div className="preview-head"><div><h2>Live Preview</h2><div className="muted">{previewType==="device-simulator"?"Device Simulator":"Live web artifact"} · {platform.toUpperCase()}</div></div>{previewHtml&&<span className="pill ok">● RUNNING</span>}</div>
-              {previewHtml?<div className={"live-frame "+(previewType==="device-simulator"?"device-preview":"")}><div className="live-frame-head"><b>{previewType==="device-simulator"?"ANDROID / DEVICE SIMULATOR":"LIVE APP"}</b><span>Interactive</span></div><iframe title="AI Factory Live Preview" srcDoc={previewHtml} sandbox="allow-scripts allow-forms allow-modals"/></div>:preview?<div className="live-frame"><div className="live-frame-head"><b>DEPLOYED</b><a href={preview} target="_blank" rel="noreferrer">Mở ↗</a></div><iframe title="Deployed Preview" src={preview}/></div>:<div className="preview-empty"><div><div className="preview-icon">◫</div><strong>Preview sẽ xuất hiện ở đây</strong><p>Chỉ cần nói app mày muốn làm. Factory sẽ tự build và render sản phẩm tại đây.</p></div></div>}
+              <div className="preview-head"><div><h2>Live Preview</h2><div className="muted">{previewType==="device-simulator"?"Device Simulator":previewType==="web-live"?"Web Runtime":"Universal Runtime"} · {platform.toUpperCase()}</div></div>{previewHtml&&<span className="pill ok">● RUNNING</span>}</div>
+              {previewHtml?<div className={"live-frame "+(previewType==="device-simulator"?"device-preview":"")}><div className="live-frame-head"><b>{previewType==="device-simulator"?"DEVICE SIMULATOR":platform==="web"?"WEB APP":"LIVE APP"}</b><span>Interactive · Universal Preview</span></div><iframe title="AI Factory Live Preview" srcDoc={previewHtml} sandbox="allow-scripts allow-forms allow-modals"/></div>:preview?<div className="live-frame"><div className="live-frame-head"><b>DEPLOYED</b><a href={preview} target="_blank" rel="noreferrer">Mở ↗</a></div><iframe title="Deployed Preview" src={preview}/></div>:<div className="preview-empty"><div><div className="preview-icon">◫</div><strong>Preview sẽ xuất hiện ở đây</strong><p>Chỉ cần nói app mày muốn làm. Factory sẽ tự build và render sản phẩm tại đây.</p></div></div>}
               <div className="review"><div className="metric"><b>{enabled.length}</b><span>FREE AI</span></div><div className="metric"><b>{messages.filter(x=>x.role==="user").length}</b><span>Yêu cầu</span></div><div className="metric"><b>{logs.length}</b><span>Pipeline</span></div></div>
               <div className="pipeline"><div className="pipeline-title">FACTORY PIPELINE</div>{["Understand","Build","Verify","Preview"].map((x,i)=><div className={"pipeline-step "+(busy&&i<3?"running":"")} key={x}><span>{i+1}</span>{x}</div>)}</div>
             </div>
