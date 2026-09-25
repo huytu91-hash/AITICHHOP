@@ -80,3 +80,5 @@
 .usage-bar.big{height:7px}
 .usage-note{font-size:10px;color:#657187;line-height:1.45;margin-top:6px}
 @media(max-width:1050px){.usage-top{display:none}}
+
+.rich-text{white-space:normal;line-height:1.6}.ai-text p{margin:5px 0}.ai-text h3{margin:10px 0 6px;font-size:14px;color:#f1e4c5}.ai-bullet{margin:4px 0;padding-left:4px}.ai-bullet span{color:#dce3ef}.ai-space{height:4px}.ai-code{margin:10px 0;padding:12px;overflow:auto;border:1px solid #293247;border-radius:9px;background:#06080c;color:#dce7f7;font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}
