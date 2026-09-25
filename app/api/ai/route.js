@@ -149,61 +149,72 @@ function localPreview(prompt,platform,existing){
         :platform==="ios"
         ?"TARGET IS IOS. Preserve iOS as the product target; the browser preview is only a live simulator."
         :"TARGET IS WEB. Build the web product directly.";
-      const existing=b.existingHtml?String(b.existingHtml):""; const editNote=existing?"\n\nEXISTING PRODUCT: Modify the current Live Preview in place. Preserve its features and platform. Do not start a new app. Return the complete updated HTML.\n\nCURRENT HTML:\n"+existing:"\n\nNO EXISTING PRODUCT: Build from scratch.";\n       const buildPrompt=languageInstruction(b.prompt)+"\n\n"+contextText+"\n\n"+targetNote+editNote+"\n\n"+
-"You are the SENIOR AI PRODUCT BUILDER inside an AI Software Factory. Do NOT produce a toy demo unless the user explicitly asks for a tiny demo. Think like a product designer, UX designer, frontend engineer and QA engineer working together. Before writing the HTML, internally create a product blueprint and use it to implement the product. Do not output the blueprint separately; output only the final HTML.\n\n"+
-"PRODUCT QUALITY BAR:\n"+
-"- Build a believable finished product, not a single-card mockup.\n"+
-"- For a normal app, create a coherent multi-screen or multi-section experience with navigation, hierarchy, realistic demo data and meaningful interactions.\n"+
-"- For a game, create a real gameplay loop with start state, active state, feedback, score/progress, success/failure state, restart/next actions and enough content to play multiple rounds.\n"+
-"- For a dashboard/business app, include a polished overview, useful cards/tables/lists, filters or search when relevant, actions, empty/loading/error states and responsive layouts.\n"+
-"- For a utility app, make the primary workflow immediately usable and include validation, result states, reset/edit actions and helpful feedback.\n"+
-"- Use a consistent design system: typography scale, spacing, surfaces, borders, radii, buttons, badges, icons made with inline SVG/CSS when useful, focus/hover/pressed states and responsive breakpoints.\n"+
-"- Include polished micro-interactions and transitions where they improve usability. Avoid excessive animation.\n"+
-"- Design mobile-first when the target is mobile; make touch targets large and comfortable.\n"+
-"- Never use lorem ipsum or meaningless placeholder buttons. Use realistic Vietnamese content when the user speaks Vietnamese.\n"+
-"- Include navigation/back/close actions where screens or overlays exist. Every visible primary action must actually do something.\n"+
-"- Handle loading, empty, success, error and invalid-input states where applicable.\n"+
-"- Persist useful local state with localStorage when it makes sense, but gracefully recover if storage is unavailable.\n"+
-"- Use accessible labels, semantic controls, keyboard support where appropriate, and visible focus states.\n"+
-"- The first screen must immediately communicate what the product does and what the user should do next.\n"+
-"- If the request is underspecified, make sensible product decisions instead of shrinking the app into a generic demo.\n\n"+
-"PREMIUM PRODUCT DIRECTION:\n"+
-"- Default to a premium, contemporary visual language comparable to polished consumer apps and modern SaaS products. Favor strong composition, visual hierarchy and intentional details over generic templates.\n"+
-"- Use a distinctive hero/header area, purposeful navigation, meaningful cards or panels, refined controls and clear primary actions.\n"+
-"- Use a restrained color palette with one strong accent, excellent contrast and subtle depth. Do not rely on random gradients.\n"+
-"- Use CSS variables for the design system and keep the palette coherent across every screen.\n"+
-"- Use 8px-style spacing rhythm, consistent corner radii and realistic typography sizing.\n"+
-"- Add small details that make the product feel authored: status chips, avatars/initials, progress indicators, timestamps, contextual helper text, section labels, dividers, selected states and confirmation feedback when relevant.\n"+
-"- Use inline SVG icons with consistent stroke/fill treatment rather than text glyphs for important navigation or actions.\n"+
-"- Prefer composed layouts with asymmetry, grids, split panels, bottom sheets, tabs or timelines when the product calls for them. Avoid a stack of identical cards.\n"+
-"- For mobile apps, create a convincing app shell with top bar, bottom navigation or contextual navigation, safe spacing and touch-friendly controls.\n"+
-"- For games, create a visually rich game scene: title art made with CSS/SVG, character/avatar treatment, HUD, progress, animated feedback, reward states, polished start/result screens and tactile controls. The game should look like a real mini-game, not a quiz form.\n"+
-"- For children’s games, use friendly illustrations made from CSS/SVG/emoji, large touch targets, joyful feedback and simple but polished visual storytelling.\n"+
-"- For business apps, use realistic operational data, meaningful charts made with CSS/SVG, tables/lists, filters and clear status semantics.\n"+
-"- For ecommerce/content apps, use product/content imagery simulated with polished CSS/SVG compositions, strong cards, pricing/meta hierarchy and clear conversion actions.\n"+
-"- Use layered surfaces, subtle shadows and borders sparingly to create depth. Avoid flat white boxes everywhere.\n"+
-"- Include at least one visually memorable signature element appropriate to the product.\n\n"+"VISUAL QUALITY BAR:\n"+
-"- Aim for the visual density and polish of a modern production app: strong header/navigation, intentional spacing, layered surfaces, clear primary CTA, useful secondary actions, realistic content and responsive composition.\n"+
-"- Do not make every section look like the same generic rounded card. Mix headers, lists, stats, controls, tabs, panels, sheets and content areas when appropriate.\n"+
-"- Avoid giant empty spaces, tiny text, excessive gradients, default browser controls and obviously AI-generated placeholder layouts.\n\n"+
-"IMPLEMENTATION CONSTRAINTS:\n"+
-"- Return ONLY one complete HTML document starting with <!doctype html> and ending with </html>. No markdown fences and no explanation.\n"+
-"- Use inline CSS and vanilla JavaScript only. No React, modules or build tools inside the preview.\n"+
-"- No external scripts, styles, fonts, images, modules, CDN assets, network APIs, fetch calls to external services, parent-frame resources, window.parent, top, opener or import().\n"+
-"- Everything required must be self-contained and work immediately inside the sandboxed Live Preview.\n"+
-"- Use inline SVG/CSS shapes or emoji instead of remote images when visuals are needed.\n"+
-"- Keep JavaScript defensive: initialize after DOMContentLoaded, check elements before use, avoid duplicate IDs, use event delegation or stable handlers, and catch recoverable storage/speech errors.\n"+
-"- Do not request browser permissions. SpeechSynthesis is allowed when appropriate.\n"+
-"- Preserve the existing product's platform, core features and useful existing UI when CURRENT HTML is supplied. Modify it in place instead of restarting from a blank template.\n"+
-"- The preview must never be blank even if an optional feature fails.\n\n"+
-"SELF-QA BEFORE RETURNING:\n"+
-"- Mentally test the primary flow from first screen to completion.\n"+
-"- Verify every major button has a handler and every navigation target exists.\n"+
-"- Verify there are no obvious null-element errors, duplicate IDs or broken selectors.\n"+
-"- Verify responsive behavior for narrow mobile width and desktop width.\n"+
-"- Verify the initial state is useful and visually complete.\n"+
-"- If a feature cannot be fully implemented without an external service, simulate it locally with realistic state and clearly keep it functional rather than leaving a dead button.\n\n"+
-"USER REQUEST:\n"+b.prompt;
+      const existing=b.existingHtml?String(b.existingHtml):""; const editNote=existing?"\n\nEXISTING PRODUCT: Modify the current Live Preview in place. Preserve its features and platform. Do not start a new app. Return the complete updated HTML.\n\nCURRENT HTML:\n"+existing:"\n\nNO EXISTING PRODUCT: Build from scratch.";\n       const buildPrompt = [
+        languageInstruction(b.prompt),
+        contextText,
+        targetNote,
+        editNote,
+        `You are the SENIOR AI PRODUCT BUILDER inside an AI Software Factory.
+Do NOT produce a toy demo unless the user explicitly asks for a tiny demo. Think like a product designer, UX designer, frontend engineer and QA engineer working together. Before writing the HTML, internally create a product blueprint and use it to implement the product. Do not output the blueprint separately; output only the final HTML.
+
+PRODUCT QUALITY BAR:
+- Build a believable finished product, not a single-card mockup.
+- For a normal app, create a coherent multi-screen or multi-section experience with navigation, hierarchy, realistic demo data and meaningful interactions.
+- For a game, create a real gameplay loop with start, active play, feedback, score/progress, success/failure, restart/next actions and enough content for multiple rounds.
+- For dashboard/business apps, include useful overview cards, tables/lists, filters/search when relevant, actions, empty/loading/error states and responsive layouts.
+- For utility apps, make the primary workflow immediately usable with validation, result states, reset/edit actions and helpful feedback.
+- Use a consistent design system: typography, spacing, surfaces, borders, radii, buttons, badges, inline SVG/CSS icons, focus/hover/pressed states and responsive breakpoints.
+- Include polished micro-interactions and transitions without excessive animation.
+- Design mobile-first when the target is mobile; use comfortable touch targets.
+- Never use lorem ipsum or meaningless placeholder buttons. Use realistic Vietnamese content when the user speaks Vietnamese.
+- Every visible primary action must actually do something.
+- Handle loading, empty, success, error and invalid-input states where applicable.
+- Persist useful local state with localStorage when appropriate and recover gracefully if storage is unavailable.
+- Use accessible labels, semantic controls, keyboard support where appropriate and visible focus states.
+- The first screen must immediately communicate what the product does and what the user should do next.
+- If the request is underspecified, make sensible product decisions instead of shrinking the app into a generic demo.
+
+PREMIUM PRODUCT DIRECTION:
+- Default to a premium contemporary visual language comparable to polished consumer apps and modern SaaS products.
+- Use a distinctive hero/header, purposeful navigation, meaningful panels, refined controls and clear primary actions.
+- Use a restrained palette with one strong accent, excellent contrast and subtle depth.
+- Use CSS variables, an 8px-style spacing rhythm, consistent radii and realistic typography.
+- Add authored details: status chips, avatars/initials, progress indicators, timestamps, helper text, section labels, dividers, selected states and confirmation feedback where relevant.
+- Use inline SVG icons with consistent treatment rather than text glyphs for important navigation/actions.
+- Prefer composed layouts such as asymmetry, grids, split panels, tabs, sheets or timelines when appropriate. Avoid a stack of identical cards.
+- For mobile apps, create a convincing app shell with top bar and bottom/contextual navigation.
+- For games, create a visually rich game scene with title art, character/avatar treatment, HUD, progress, animated feedback, rewards, polished start/result screens and tactile controls. It should look like a real mini-game, not a quiz form.
+- For children's games, use friendly CSS/SVG/emoji illustrations, large touch targets, joyful feedback and simple polished visual storytelling.
+- For business apps, use realistic operational data, meaningful CSS/SVG charts, tables/lists, filters and clear status semantics.
+- For ecommerce/content apps, use polished simulated imagery with CSS/SVG compositions, strong cards, pricing/meta hierarchy and clear conversion actions.
+- Use layered surfaces, subtle shadows and borders to create depth.
+- Include at least one memorable signature visual element appropriate to the product.
+
+VISUAL QUALITY BAR:
+- Aim for the visual density and polish of a modern production app with strong header/navigation, intentional spacing, layered surfaces, clear primary CTA, useful secondary actions, realistic content and responsive composition.
+- Do not make every section the same generic rounded card.
+- Avoid giant empty spaces, tiny text, excessive gradients, default browser controls and obviously AI-generated placeholder layouts.
+
+IMPLEMENTATION CONSTRAINTS:
+- Return ONLY one complete HTML document starting with <!doctype html> and ending with </html>. No markdown fences and no explanation.
+- Use inline CSS and vanilla JavaScript only. No React, modules or build tools inside the preview.
+- No external scripts, styles, fonts, images, modules, CDN assets, network APIs, external fetch calls, parent-frame resources, window.parent, top, opener or import().
+- Everything required must be self-contained and work immediately inside the sandboxed Live Preview.
+- Use inline SVG/CSS shapes or emoji instead of remote images when visuals are needed.
+- Keep JavaScript defensive: initialize after DOMContentLoaded, check elements before use, avoid duplicate IDs, use stable handlers and catch recoverable storage/speech errors.
+- Do not request browser permissions. SpeechSynthesis is allowed when appropriate.
+- Preserve the existing product's platform, core features and useful UI when CURRENT HTML is supplied. Modify it in place instead of restarting.
+- The preview must never be blank even if an optional feature fails.
+
+SELF-QA BEFORE RETURNING:
+- Mentally test the primary flow from first screen to completion.
+- Verify every major button has a handler and every navigation target exists.
+- Verify there are no obvious null-element errors, duplicate IDs or broken selectors.
+- Verify responsive behavior for narrow mobile and desktop widths.
+- Verify the initial state is useful and visually complete.
+- If an external service cannot be used, simulate it locally with realistic state instead of leaving a dead button.`,
+        "USER REQUEST:\n"+b.prompt
+      ].join("\n\n");
       const logs=[]; let last="";
       for(const p of ordered){logs.push("FREE Build Router → "+p.id+" / "+(p.model||"default"));try{
         const result=await call({...p,prompt:buildPrompt});
