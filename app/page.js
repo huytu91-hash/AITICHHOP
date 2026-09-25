@@ -293,6 +293,19 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
     return()=>window.removeEventListener("message",onPreviewMessage);
   },[]);
 
+  function renderAiText(text){
+    const raw=String(text||"").replace(/\\r/g,"");
+    return raw.split("```").map((part,i)=>{
+      if(i%2===1) return <pre className="ai-code" key={i}><code>{part.replace(/^\\w+\\n/,"").replace(/\\n$/,"")}</code></pre>;
+      return <div className="ai-text" key={i}>{part.split("\\n").map((line,j)=>{
+        const t=line.trim();
+        if(!t)return <div className="ai-space" key={j}/>;
+        if(/^#{1,3}\\s/.test(t))return <h3 key={j}>{t.replace(/^#{1,3}\\s/,"")}</h3>;
+        if(/^[-*]\\s+/.test(t))return <div className="ai-bullet" key={j}>• <span>{t.replace(/^[-*]\\s+/,"")}</span></div>;
+        return <p key={j}>{t.split(/(\\*\\*[^*]+\\*\\*)/g).map((x,k)=>/^\\*\\*[^*]+\\*\\*$/.test(x)?<strong key={k}>{x.slice(2,-2)}</strong>:x)}</p>;
+      })}</div>;
+    });
+  }
   async function run(){
     if(!prompt.trim()||busy)return;
     const user=prompt.trim();
@@ -348,6 +361,23 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
       }finally{setBusy(false)}
       return;
     }
+    const buildIntent=/\b(tạo|làm|xây|build|create|generate|triển khai|dựng|code|viết code|cho chạy|đưa vào preview)\b/i.test(user) || (/\b(app|ứng dụng|website|web|game|phần mềm)\b/i.test(user) && /\b(tạo|làm|xây|build|create|dựng)\b/i.test(user));
+    if(!buildIntent){
+      try{
+        if(!enabled.length){
+          setMessages(m=>[...m,{role:"assistant",content:"Tao hiểu. Cứ nói yêu cầu, ý tưởng, chức năng hoặc cách mày muốn app hoạt động. Khi nào mày bảo tạo/build/làm app, Factory mới chuyển sang Build."}]);
+          return;
+        }
+        const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"chat",mode:"auto",prompt:user,history:[...history,{role:"user",content:user}],providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected})});
+        const data=await r.json();
+        if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
+        if(!r.ok||!data.text)throw new Error(data.error||"AI chat không khả dụng");
+        if(data.provider)recordUsage(data.provider,data.quota);
+        setMessages(m=>[...m,{role:"assistant",content:data.text}]);
+      }catch(e){setMessages(m=>[...m,{role:"assistant",content:"Tao chưa kết nối được AI chat: "+e.message}]);setNotice("✕ "+e.message)}
+      finally{setBusy(false)}
+      return;
+    }
     try{
       setPipeline(["done","running","idle","idle"]);
       await apiBuild(user,[...history,{role:"user",content:user}],hasCurrentProduct?previewHtml:"");
@@ -357,16 +387,14 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
           const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"chat",mode:"auto",prompt:user,history:[...history,{role:"user",content:user}],providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected})});
           const data=await r.json();
           if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
-          if(r.ok&&data.text){if(data.provider)recordUsage(data.provider,data.quota);setMessages(m=>[...m,{role:"assistant",content:data.text}]);
-          } else setLogs(l=>[...l,"AI chat không khả dụng sau build; giữ artifact đã build."]);
+          if(r.ok&&data.text){if(data.provider)recordUsage(data.provider,data.quota);setMessages(m=>[...m,{role:"assistant",content:data.text}]);}
+          else setLogs(l=>[...l,"AI chat không khả dụng sau build; giữ artifact đã build."]);
         }catch(e){setLogs(l=>[...l,"AI chat fallback: "+e.message])}
-      }else{
-        setLogs(l=>[...l,"AI chat bỏ qua vì chưa có FREE provider; Local Runtime vẫn build được."]);
       }
       setPipeline(["done","done","done","done"]);
     }catch(e){
       setMessages(m=>[...m,{role:"assistant",content:"Lỗi build: "+e.message}]);setLogs(l=>[...l,"Factory: thất bại — "+e.message]);setNotice("✕ "+e.message);setPipeline(["done","error","idle","idle"]);
-    }finally{setBusy(false)}
+    }finally{setBusy(false)}    }finally{setBusy(false)}
   }
 
   async function testProvider(p){
@@ -415,12 +443,12 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
           {notice&&<div className="card factory-notice">{notice}</div>}
           <div className="factory-grid">
             <div className="card chat factory-chat">
-              <div className="factory-head"><div><h2>AI Factory</h2><div className="muted">Conversation + build agent hợp nhất</div></div><input value={project} onChange={e=>setProject(e.target.value)} /></div>
-              <div className="messages" ref={messagesRef} onScroll={handleMessagesScroll}>{messages.length?messages.map((m,i)=><div key={i} className={"msg "+(m.role==="user"?"user":m.role==="system"?"system":"ai")}><b>{m.role==="user"?"Bạn":m.role==="system"?"Factory":"AI"} </b><div>{m.content}</div></div>):<div className="empty"><strong>Hãy nói app mày muốn làm.</strong><br/>Ví dụ: “Tạo app Android mở lên có nút bấm, bấm vào thì đọc số từ 1 đến 100 bằng tiếng Việt.”<br/><br/>Factory sẽ giữ platform, tự chọn công nghệ phù hợp và đưa kết quả sang Preview.</div>}</div>
+              <div className="factory-head"><div><h2>AI Factory</h2><div className="muted">Chat tự nhiên + Build Agent hợp nhất</div></div><input value={project} onChange={e=>setProject(e.target.value)} /></div>
+              <div className="messages" ref={messagesRef} onScroll={handleMessagesScroll}>{messages.length?messages.map((m,i)=><div key={i} className={"msg "+(m.role==="user"?"user":m.role==="system"?"system":"ai")}><b>{m.role==="user"?"Bạn":m.role==="system"?"Factory":"AI"} </b><div>{m.role==="assistant"?renderAiText(m.content):m.content}</div></div>):<div className="empty"><strong>Hãy nói app mày muốn làm.</strong><br/>Ví dụ: “Tạo app Android mở lên có nút bấm, bấm vào thì đọc số từ 1 đến 100 bằng tiếng Việt.”<br/><br/>Factory sẽ giữ platform, tự chọn công nghệ phù hợp và đưa kết quả sang Preview.</div>}</div>
               <div className="composer">
                 <div className="field"><label>AI Router</label><select value={selected} onChange={e=>setSelected(e.target.value)}><option value="auto">Auto fallback — FREE</option>{enabled.map(p=><option key={p.id} value={p.id}>{p.name} · {p.model}</option>)}</select></div>
-                <div className="field"><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter")run()}} placeholder="Nói thẳng thứ mày muốn xây… ví dụ: tạo app Android đọc 1–100 bằng tiếng Việt."/></div>
-                <div className="factory-send"><span className="muted">{busy?"Factory đang xây và kiểm tra preview…":"Ctrl/Cmd + Enter để triển khai"}</span><button className="btn primary" disabled={busy} onClick={run}>{busy?"Đang build…":"Gửi & triển khai →"}</button></div>
+                <div className="field"><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter")run()}} placeholder="Cứ nói chuyện như đang nói với ChatGPT: yêu cầu, ý tưởng, câu hỏi, chức năng, sửa đổi… Khi muốn Factory xây thì nói: tạo / build / làm app."/></div>
+                <div className="factory-send"><span className="muted">{busy?"Factory đang xây và kiểm tra preview…":"Ctrl/Cmd + Enter để triển khai"}</span><button className="btn primary" disabled={busy} onClick={run}>{busy?"Đang xử lý…":"Gửi →"}</button></div>
               </div>
             </div>
 
