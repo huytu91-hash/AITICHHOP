@@ -65,8 +65,6 @@ export default function Home(){
     }finally{setBusy(false)}
   }
 
-  function addProvider(){setProviders(p=>[...p,{id:"custom-"+Date.now(),name:"Custom OpenAI-compatible",model:"",placeholder:"API key",enabled:false}])}
-
   return <div className="shell">
     <aside className="sidebar">
       <div className="brand"><div className="logo">AI</div><div><b>AI Software Factory</b><span>Build • Review • Ship</span></div></div>
@@ -99,7 +97,7 @@ export default function Home(){
             </div>
           </div>
         </section>:<section className="settings">
-          <div className="hero"><div><div className="eyebrow">Settings</div><h1>AI Providers</h1><p>Nhập key trực tiếp trong app. Key được lưu trong localStorage của trình duyệt hiện tại và không được ghi vào GitHub.</p></div><button className="btn" onClick={addProvider}>+ Custom provider</button></div>
+          <div className="hero"><div><div className="eyebrow">Settings</div><h1>AI Providers</h1><p>Nhập key trực tiếp trong app. Key được lưu trong localStorage của trình duyệt hiện tại và không được ghi vào GitHub.</p></div><button className="btn" onClick={()=>setNotice("4 adapter đang có sẵn: OpenAI, Anthropic, Gemini và OpenRouter. Custom endpoint sẽ thêm ở bước tiếp theo.")}>+ Custom provider</button></div>
           {notice&&<div className="card" style={{marginBottom:14}}>{notice}</div>}
           <div className="card"><h2>Provider pool</h2><div className="muted">Router chỉ dùng provider đang bật và có key.</div>
             <div className="providers">{providers.map(p=><div className="provider" key={p.id}>
