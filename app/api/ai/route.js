@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { GoogleGenAI } from "@google/genai";
 
 const PROVIDERS = {
   google:{url:(m,k)=>"https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(m)+":generateContent?key="+encodeURIComponent(k),headers:()=>({"Content-Type":"application/json"}),body:(m,p)=>({contents:[{role:"user",parts:[{text:p}]}]}),parse:d=>d.candidates?.[0]?.content?.parts?.map(x=>x.text||"").join("")||""},
@@ -134,7 +135,22 @@ function localPreview(prompt,platform,existing){
 }export async function POST(req){
   try{
     const b=await req.json();
-    if(b.action==="media"){return NextResponse.json({error:"Media provider chưa được bật trong bản build này."},{status:501})}
+    if(b.action==="media"){
+      if(b.type!=="image") return NextResponse.json({error:"Video chưa được hỗ trợ. Media Studio hiện chỉ tạo ảnh."},{status:400});
+      const prompt=String(b.prompt||"").trim();
+      if(!prompt) return NextResponse.json({error:"Hãy nhập mô tả ảnh cần tạo."},{status:400});
+      if(prompt.length>2000) return NextResponse.json({error:"Mô tả ảnh không được vượt quá 2.000 ký tự."},{status:400});
+      if(!process.env.NETLIFY_AI_GATEWAY_KEY||!process.env.NETLIFY_AI_GATEWAY_BASE_URL) return NextResponse.json({error:"Netlify AI Gateway chưa sẵn sàng. Hãy deploy production trước rồi thử lại."},{status:503});
+      const ai=new GoogleGenAI({
+        apiKey:process.env.NETLIFY_AI_GATEWAY_KEY,
+        httpOptions:{baseUrl:process.env.NETLIFY_AI_GATEWAY_BASE_URL.replace(/\/$/,"")}
+      });
+      const response=await ai.models.generateContent({model:"gemini-2.5-flash-image",contents:prompt});
+      const parts=response.candidates?.[0]?.content?.parts||[];
+      const image=parts.find(part=>part.inlineData?.data);
+      if(!image) return NextResponse.json({error:"Model chưa trả về ảnh. Hãy thử mô tả khác."},{status:502});
+      return NextResponse.json({ok:true,image:`data:${image.inlineData.mimeType||"image/png"};base64,${image.inlineData.data}`,model:"gemini-2.5-flash-image"});
+    }
     if(b.action==="models"){b.provider=normalizeProvider(b.provider);if(!FREE.has(b.provider))return NextResponse.json({error:"Chỉ cho phép FREE provider."},{status:403});return NextResponse.json({ok:true,models:await models(b.provider,b.key)})}
     if(b.action==="build"){
       const list=(b.providers||[]).filter(x=>x?.key&&FREE.has(x.id));
@@ -149,7 +165,8 @@ function localPreview(prompt,platform,existing){
         :platform==="ios"
         ?"TARGET IS IOS. Preserve iOS as the product target; the browser preview is only a live simulator."
         :"TARGET IS WEB. Build the web product directly.";
-      const existing=b.existingHtml?String(b.existingHtml):""; const editNote=existing?"\n\nEXISTING PRODUCT: Modify the current Live Preview in place. Preserve its features and platform. Do not start a new app. Return the complete updated HTML.\n\nCURRENT HTML:\n"+existing:"\n\nNO EXISTING PRODUCT: Build from scratch.";\n       const buildPrompt=languageInstruction(b.prompt)+"\n\n"+contextText+"\n\n"+targetNote+editNote+"\n\n"+
+      const existing=b.existingHtml?String(b.existingHtml):""; const editNote=existing?"\n\nEXISTING PRODUCT: Modify the current Live Preview in place. Preserve its features and platform. Do not start a new app. Return the complete updated HTML.\n\nCURRENT HTML:\n"+existing:"\n\nNO EXISTING PRODUCT: Build from scratch.";
+      const buildPrompt=languageInstruction(b.prompt)+"\n\n"+contextText+"\n\n"+targetNote+editNote+"\n\n"+
 "You are the SENIOR AI PRODUCT BUILDER inside an AI Software Factory. Do NOT produce a toy demo unless the user explicitly asks for a tiny demo. Think like a product designer, UX designer, frontend engineer and QA engineer working together. Before writing the HTML, internally create a product blueprint and use it to implement the product. Do not output the blueprint separately; output only the final HTML.\n\n"+
 "PRODUCT QUALITY BAR:\n"+
 "- Build a believable finished product, not a single-card mockup.\n"+

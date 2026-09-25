@@ -64,8 +64,8 @@ export default function Home(){
   }
   function instrumentPreview(html){
     if(!html)return html;
-    const bridge = '<script>(function(){window.addEventListener("error",function(e){try{parent.postMessage({source:"asf-preview-error",message:e.message||"JavaScript error"},"*")}catch(_){}});window.addEventListener("unhandledrejection",function(e){try{parent.postMessage({source:"asf-preview-error",message:String(e.reason?.message||e.reason||"Unhandled promise rejection")},"*")}catch(_){}})})();<\\/script>';
-    return html.replace(/<\\/body>/i,bridge+"<\\/body>");
+    const bridge = '<script>(function(){window.addEventListener("error",function(e){try{parent.postMessage({source:"asf-preview-error",message:e.message||"JavaScript error"},"*")}catch(_){}});window.addEventListener("unhandledrejection",function(e){try{parent.postMessage({source:"asf-preview-error",message:String(e.reason?.message||e.reason||"Unhandled promise rejection")},"*")}catch(_){}})})();</script>';
+    return html.replace(/<\/body>/i,bridge+"</body>");
   }
 
   function jumpToLatest(){
@@ -143,7 +143,7 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
   useEffect(()=>{localStorage.setItem("asf.providers",JSON.stringify(providers));window.__ASF_PROVIDERS__=providers.filter(p=>p.free&&p.enabled&&p.key).map(p=>({id:p.id,key:p.key,model:p.model}));},[providers]);
   useEffect(()=>localStorage.setItem("asf.projects",JSON.stringify(projects)),[projects]);
   useEffect(()=>localStorage.setItem("asf.chats",JSON.stringify(chatSessions)),[chatSessions]);
-  useEffect(()=>localStorage.setItem("asf.media",JSON.stringify(mediaHistory)),[mediaHistory]);
+  useEffect(()=>localStorage.setItem("asf.media",JSON.stringify(mediaHistory.map(({image,...item})=>item))),[mediaHistory]);
   useEffect(()=>localStorage.setItem("asf.usage",JSON.stringify(usage)),[usage]);
   useEffect(()=>{
     if(!activeChat||!messages.length)return;
@@ -412,8 +412,19 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
   }
   async function generateMedia(){
     if(!mediaPrompt.trim()||mediaBusy)return;setMediaBusy(true);
-    const item={id:Date.now().toString(),type:mediaType,prompt:mediaPrompt.trim(),status:"queued",createdAt:new Date().toISOString()};
-    setMediaHistory(x=>[item,...x]);setNotice("Media API FREE vĩnh viễn hiện chưa đủ điều kiện để gọi tự động; không dùng nguồn trả phí.");setMediaBusy(false);
+    if(mediaType!=="image"){setNotice("Video chưa được hỗ trợ. Hiện tại Media Studio chỉ tạo ảnh miễn phí.");setMediaBusy(false);return}
+    const item={id:Date.now().toString(),type:"image",prompt:mediaPrompt.trim(),status:"generating",createdAt:new Date().toISOString()};
+    setMediaHistory(x=>[item,...x]);setNotice("Đang tạo ảnh bằng Netlify AI Gateway…");
+    try{
+      const response=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"media",type:"image",prompt:item.prompt})});
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.error||"Không thể tạo ảnh");
+      setMediaHistory(x=>x.map(entry=>entry.id===item.id?{...entry,status:"done",image:data.image,model:data.model}:entry));
+      setNotice("✓ Ảnh đã tạo xong. Bạn có thể xem hoặc tải xuống ngay.");
+    }catch(error){
+      setMediaHistory(x=>x.map(entry=>entry.id===item.id?{...entry,status:"error",error:error.message}:entry));
+      setNotice("✕ "+error.message);
+    }finally{setMediaBusy(false)}
   }
 
   return <div className="shell">
@@ -436,7 +447,7 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
     </aside>
 
     <main className="main">
-      <header className="topbar"><div className="status"><span className="dot"/>{enabled.length} provider sẵn sàng</div><div className="usage-top">{enabled.slice(0,3).map(p=>{const q=usageInfo(p.id);return <div className="usage-chip" key={p.id}><div className="usage-chip-head"><span>{p.id==="google"?"Gemini":p.id==="groq"?"Groq":"OpenRouter"}</span><b>{q.remaining!=null?`${q.remaining} còn`:`${q.u.used||0} lượt`}</b></div><div className="usage-bar"><i style={{width:`${q.percent!=null?q.percent:Math.max(8,Math.min(100,100-(q.u.used||0)*4))}%`}}/></div>})}</div><div className="row"><button className="btn" onClick={newChat}>+ Chat mới</button><button className="btn" onClick={()=>setTab("settings")}>Manage AI</button></div></header>
+      <header className="topbar"><div className="status"><span className="dot"/>{enabled.length} provider sẵn sàng</div><div className="usage-top">{enabled.slice(0,3).map(p=>{const q=usageInfo(p.id);return <div className="usage-chip" key={p.id}><div className="usage-chip-head"><span>{p.id==="google"?"Gemini":p.id==="groq"?"Groq":"OpenRouter"}</span><b>{q.remaining!=null?`${q.remaining} còn`:`${q.u.used||0} lượt`}</b></div><div className="usage-bar"><i style={{width:`${q.percent!=null?q.percent:Math.max(8,Math.min(100,100-(q.u.used||0)*4))}%`}}/></div></div>})}</div><div className="row"><button className="btn" onClick={newChat}>+ Chat mới</button><button className="btn" onClick={()=>setTab("settings")}>Manage AI</button></div></header>
       <div className="content">
         {tab==="workspace"&&<section className="workspace">
           <div className="hero"><div><div className="eyebrow">AI SOFTWARE FACTORY</div><h1>Một ô nói chuyện. Một ô thấy sản phẩm.</h1><p>Không cần AI Code Studio riêng. Mô tả → AI hiểu → tự build → tự đưa sản phẩm vào Preview.</p></div><div className="row"><button className="btn" onClick={newProject}>+ New project</button><button className="btn primary" onClick={saveProject}>Save</button></div></div>
@@ -463,9 +474,9 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
         </section>}
 
         {tab==="media"&&<section className="settings">
-          <div className="hero"><div><div className="eyebrow">CREATIVE</div><h1>AI Media Studio</h1><p>Workflow media nằm trong cùng Factory. Chỉ gọi nguồn API khi đáp ứng đúng điều kiện FREE.</p></div></div>
+          <div className="hero"><div><div className="eyebrow">CREATIVE</div><h1>AI Media Studio</h1><p>Tạo ảnh bằng credit miễn phí của Netlify AI Gateway. Không tự động chuyển sang nguồn trả phí.</p></div></div>
           {notice&&<div className="card factory-notice">{notice}</div>}
-          <div className="grid"><div className="card"><div className="row"><button className={"btn "+(mediaType==="image"?"primary":"")} onClick={()=>setMediaType("image")}>▧ Image</button><button className={"btn "+(mediaType==="video"?"primary":"")} onClick={()=>setMediaType("video")}>▶ Video</button></div><div className="field"><label>Mô tả</label><textarea value={mediaPrompt} onChange={e=>setMediaPrompt(e.target.value)} placeholder="Mô tả hình ảnh / video cần tạo…"/></div><div className="field"><label>Ảnh tham chiếu</label><input type="file" accept="image/*,video/*"/></div><button className="btn primary" disabled={mediaBusy} onClick={generateMedia}>Generate</button></div><div className="card"><h2>Media history</h2><div className="logs">{mediaHistory.length?mediaHistory.slice(0,12).map(x=><div className="log" key={x.id}><b>{x.type.toUpperCase()}</b> · {x.prompt}<br/><span className="muted">{new Date(x.createdAt).toLocaleString("vi-VN")} · {x.status}</span></div>):<div className="log">Chưa có media.</div>}</div></div></div>
+          <div className="grid"><div className="card"><div className="row"><button className={"btn "+(mediaType==="image"?"primary":"")} onClick={()=>setMediaType("image")}>▧ Image</button><button className="btn" disabled title="Sẽ bổ sung sau khi luồng tạo ảnh ổn định">▶ Video · sắp có</button></div><div className="field"><label>Mô tả ảnh</label><textarea value={mediaPrompt} maxLength={2000} onChange={e=>setMediaPrompt(e.target.value)} placeholder="Ví dụ: Một chú mèo phi hành gia phong cách hoạt hình, nền tím, ánh sáng điện ảnh…"/></div><button className="btn primary" disabled={mediaBusy||!mediaPrompt.trim()} onClick={generateMedia}>{mediaBusy?"Đang tạo ảnh…":"Tạo ảnh"}</button><div className="muted">Dùng gemini-2.5-flash-image qua Netlify AI Gateway.</div></div><div className="card"><h2>Media history</h2><div className="logs">{mediaHistory.length?mediaHistory.slice(0,12).map(x=><div className="log" key={x.id}>{x.image&&<img src={x.image} alt={x.prompt} style={{width:"100%",maxHeight:360,objectFit:"contain",borderRadius:12,marginBottom:10}}/>}<b>{x.type.toUpperCase()}</b> · {x.prompt}<br/><span className="muted">{new Date(x.createdAt).toLocaleString("vi-VN")} · {x.status}{x.model?" · "+x.model:""}</span>{x.error&&<div className="preview-error">⚠ {x.error}</div>}{x.image&&<div style={{marginTop:10}}><a className="btn primary" href={x.image} download={`ai-image-${x.id}.png`}>↓ Tải ảnh</a></div>}</div>):<div className="log">Chưa có media.</div>}</div></div></div>
         </section>}
 
         {tab==="settings"&&<section className="settings">
