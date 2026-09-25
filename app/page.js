@@ -30,6 +30,7 @@ export default function Home(){
   const [busy,setBusy]=useState(false);
   const [project,setProject]=useState("Untitled Project");
   const [preview,setPreview]=useState("");
+  const [previewHtml,setPreviewHtml]=useState("");
   const [notice,setNotice]=useState("");
   const [models,setModels]=useState({});
   const [loadingModels,setLoadingModels]=useState({});
@@ -79,8 +80,21 @@ export default function Home(){
   }
   function openChat(chat){setActiveChat(chat.id);setMessages(chat.messages||[]);setLogs(chat.logs||[]);if(chat.projectId){setActiveProject(chat.projectId);const p=projects.find(x=>x.id===chat.projectId);if(p){setProject(p.name);setPreview(p.vercel||"");}}setNotice("Đã mở cuộc trò chuyện.");}
   function deleteChat(id){setChatSessions(x=>x.filter(c=>c.id!==id));if(activeChat===id){setActiveChat("");setMessages([]);setLogs([]);}setNotice("Đã xóa đoạn chat.");}
-  function saveProject(){const p={id:activeProject||Date.now().toString(),name:project||"Dự án chưa đặt tên",description:prompt,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),github:"",vercel:preview,updatedAt:new Date().toISOString()};setProjects(xs=>{const i=xs.findIndex(x=>x.id===p.id);if(i<0)return[p,...xs];const a=[...xs];a[i]={...a[i],...p};return a});setActiveProject(p.id);setNotice("✓ Đã lưu dự án.");}
-  function openProject(p){setActiveProject(p.id);setProject(p.name);setPreview(p.vercel||"");setPrompt(p.description||"");setMessages(p.blueprint?[{role:"assistant",content:p.blueprint}]:[]);setLogs([]);setNotice("Đã mở "+p.name+".");}
+  function saveProject(){const p={id:activeProject||Date.now().toString(),name:project||"Dự án chưa đặt tên",description:prompt,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),github:"",vercel:preview,previewHtml,updatedAt:new Date().toISOString()};setProjects(xs=>{const i=xs.findIndex(x=>x.id===p.id);if(i<0)return[p,...xs];const a=[...xs];a[i]={...a[i],...p};return a});setActiveProject(p.id);setNotice("✓ Đã lưu dự án.");}
+  function openProject(p){setActiveProject(p.id);setProject(p.name);setPreview(p.vercel||"");setPreviewHtml(p.previewHtml||"");setPrompt(p.description||"");setMessages(p.blueprint?[{role:"assistant",content:p.blueprint}]:[]);setLogs([]);setNotice("Đã mở "+p.name+".");}
+  async function buildPreview(){
+    if(!prompt.trim()||busy)return;
+    if(!enabled.length){setNotice("Chưa có AI provider nào được bật và có key.");setTab("settings");return}
+    const user=prompt.trim();setBusy(true);setLogs(l=>[...l,"Build: tạo Live Preview..."]);
+    try{
+      const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"build",prompt:user,providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected})});
+      const data=await r.json();
+      if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
+      if(!r.ok)throw new Error(data.error||"Không tạo được preview");
+      setPreviewHtml(data.html);setPreview("");setMessages(m=>[...m,{role:"assistant",content:"Đã tạo Live Preview bằng "+data.provider+"."}]);setNotice("✓ Live Preview đã được tạo.");
+    }catch(e){setNotice("✕ "+e.message);setLogs(l=>[...l,"Build: "+e.message]);}
+    finally{setBusy(false)}
+  }
   function deleteProject(id){
     const p=projects.find(x=>x.id===id); if(!p)return;
     if(!window.confirm("Xóa dự án "+p.name+"? Hành động này không thể hoàn tác."))return;
