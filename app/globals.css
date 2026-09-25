@@ -46,3 +46,15 @@
 .logs-card{margin-top:14px}
 @media(max-width:1000px){.factory-grid{grid-template-columns:1fr}.factory-chat,.preview-card{min-height:auto}.preview-card .device-preview iframe,.preview-card .live-frame iframe{height:500px}}
 @media(max-width:700px){.factory-head,.preview-head,.factory-send{display:block}.factory-head input{width:100%;margin-top:10px}.factory-send .btn{margin-top:10px}}
+
+
+/* Project checkpoints */
+.version-strip{margin-top:12px;padding:11px;border:1px solid #20283a;border-radius:10px;background:#080a0e}
+.version-strip>b{font-size:10px;color:#d4af5a}
+.version-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px;max-height:90px;overflow:auto}
+.version-btn{border:1px solid #293247;background:#111722;color:#aeb9cb;border-radius:8px;padding:7px 9px;font-size:10px}
+.version-btn:hover{border-color:#c9a552;color:#fff;background:#171d29}
+.pipeline-step.done{color:#8ee4b8}
+.pipeline-step.done span{border-color:#2c704d;color:#8ee4b8}
+.pipeline-step.error{color:#ff8d8d}
+.pipeline-step.error span{border-color:#6b2929;color:#ff8d8d}
