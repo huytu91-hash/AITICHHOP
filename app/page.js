@@ -13,9 +13,9 @@ function loadProviders(){
   try{
     const saved=JSON.parse(localStorage.getItem("asf.providers")||"null");
     if(!saved?.length) return DEFAULTS;
-    return saved.map(p=>{
-      const d=DEFAULTS.find(x=>x.id===p.id);
-      return d ? {...d,...p,keyUrl:d.keyUrl} : p;
+    return DEFAULTS.map(d=>{
+      const p=saved.find(x=>x.id===d.id);
+      return p ? {...d,...p,keyUrl:d.keyUrl,free:true} : d;
     });
   }catch{return DEFAULTS}
 }
@@ -33,6 +33,7 @@ export default function Home(){
   const [notice,setNotice]=useState("");
   const [models,setModels]=useState({});
   const [loadingModels,setLoadingModels]=useState({});
+  const [connection,setConnection]=useState({});
 
   useEffect(()=>localStorage.setItem("asf.providers",JSON.stringify(providers)),[providers]);
 
@@ -44,10 +45,11 @@ export default function Home(){
 
   async function testProvider(p){
     if(!p.key){setNotice("Nhập API key trước.");return}
-    setNotice("Đang kiểm tra "+p.name+"...");
+    setConnection(x=>({...x,[p.id]:{status:"testing",message:"Đang kiểm tra..."}}));
     try{
       const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"test",provider:p.id,key:p.key,model:p.model})});
       const data=await r.json();
+      setConnection(x=>({...x,[p.id]:data.ok?{status:"connected",message:"Đã kết nối"}:{status:"error",message:data.error||"Kết nối thất bại"}}));
       setNotice(data.ok?"✓ "+p.name+" kết nối OK":("✕ "+p.name+": "+(data.error||"Không kết nối được")));
     }catch(e){setNotice("✕ Lỗi mạng khi kiểm tra "+p.name)}
   }
@@ -129,7 +131,7 @@ export default function Home(){
               </select></div>
               {models[p.id]?.length>0&&<div className="muted" style={{marginTop:-7,marginBottom:10}}>Đã tải {models[p.id].length} model. Chọn trực tiếp từ danh sách.</div>}
               <div className="field"><label>API key</label><input type="password" value={p.key||""} onChange={e=>update(p.id,{key:e.target.value})} placeholder={p.placeholder}/></div>
-              <div className="provider-actions"><button className="btn" onClick={()=>loadModels(p)} disabled={loadingModels[p.id]}>{loadingModels[p.id]?"Đang tải…":"↻ Tải models"}</button><button className="btn" onClick={()=>testProvider(p)}>Test connection</button><button className="btn" onClick={()=>clearKey(p.id)}>Clear key</button><a className="btn primary" href={p.keyUrl} target="_blank" rel="noopener noreferrer">Lấy API key ↗</a></div>
+              <div className="provider-actions"><button className="btn" onClick={()=>loadModels(p)} disabled={loadingModels[p.id]}>{loadingModels[p.id]?"Đang tải…":"↻ Tải models"}</button><button className="btn" onClick={()=>testProvider(p)}>Test connection</button><button className="btn" onClick={()=>clearKey(p.id)}>Clear key</button><a className="btn primary" href={p.keyUrl} target="_blank" rel="noopener noreferrer">Lấy API key ↗</a>{connection[p.id]&&<span className={"connection "+connection[p.id].status}>{connection[p.id].status==="connected"?"● Đã kết nối":connection[p.id].status==="testing"?"○ Đang kiểm tra":"× "+connection[p.id].message}</span>}</div>
             </div>)}</div>
           </div>
         </section>}
