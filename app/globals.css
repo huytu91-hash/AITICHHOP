@@ -64,3 +64,6 @@
 .messages{scroll-behavior:smooth;position:relative}
 .jump-latest{position:absolute;right:18px;bottom:138px;z-index:3;border:1px solid rgba(212,175,90,.35);background:rgba(17,20,28,.96);color:#f4dfad;border-radius:999px;padding:8px 12px;font-size:11px;box-shadow:0 10px 25px rgba(0,0,0,.35)}
 .jump-latest:hover{background:#1a1e29;border-color:#d4af5a}
+
+.preview-error{position:absolute;left:12px;right:12px;bottom:12px;z-index:5;display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid rgba(239,68,68,.35);border-radius:12px;background:rgba(25,12,16,.96);color:#fecaca;font-size:11px}
+.preview-error span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
