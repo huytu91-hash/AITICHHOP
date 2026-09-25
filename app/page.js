@@ -34,6 +34,7 @@ export default function Home(){
   const [models,setModels]=useState({});
   const [loadingModels,setLoadingModels]=useState({});
   const [connection,setConnection]=useState({});
+  const [usage,setUsage]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.usage")||"{}")}catch{return {}}});
   const [projects,setProjects]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.projects")||"[]")}catch{return []}});
   const [activeProject,setActiveProject]=useState("");
   const [chatSessions,setChatSessions]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.chats")||"[]")}catch{return []}});
@@ -143,6 +144,7 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
   useEffect(()=>localStorage.setItem("asf.projects",JSON.stringify(projects)),[projects]);
   useEffect(()=>localStorage.setItem("asf.chats",JSON.stringify(chatSessions)),[chatSessions]);
   useEffect(()=>localStorage.setItem("asf.media",JSON.stringify(mediaHistory)),[mediaHistory]);
+  useEffect(()=>localStorage.setItem("asf.usage",JSON.stringify(usage)),[usage]);
   useEffect(()=>{
     if(!activeChat||!messages.length)return;
     const t=setTimeout(()=>setChatSessions(xs=>{
@@ -161,6 +163,25 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
 
   const enabled=useMemo(()=>providers.filter(p=>p.free&&p.enabled&&p.key),[providers]);
 
+  function recordUsage(provider,quota){
+    if(!provider)return;
+    setUsage(prev=>{
+      const old=prev[provider]||{};
+      const next={...old,used:(old.used||0)+1,lastAt:new Date().toISOString()};
+      if(quota?.remainingRequests!=null)next.remainingRequests=Number(quota.remainingRequests);
+      if(quota?.limitRequests!=null)next.limitRequests=Number(quota.limitRequests);
+      if(quota?.remainingTokens!=null)next.remainingTokens=Number(quota.remainingTokens);
+      if(quota?.limitTokens!=null)next.limitTokens=Number(quota.limitTokens);
+      return {...prev,[provider]:next};
+    });
+  }
+  function usageInfo(id){
+    const u=usage[id]||{};
+    const remaining=Number.isFinite(u.remainingRequests)?u.remainingRequests:null;
+    const limit=Number.isFinite(u.limitRequests)&&u.limitRequests>0?u.limitRequests:null;
+    const percent=remaining!=null&&limit?Math.max(0,Math.min(100,remaining/limit*100)):null;
+    return {u,remaining,limit,percent};
+  }
   function update(id,patch){setProviders(ps=>ps.map(p=>p.id===id?{...p,...patch}:p))}
   function toggle(id){setProviders(ps=>ps.map(p=>p.id===id?{...p,enabled:!p.enabled}:p))}
   function clearKey(id){update(id,{key:"",enabled:false});setModels(ms=>({...ms,[id]:[]}));setNotice("Đã xoá API key khỏi trình duyệt.");}
@@ -233,6 +254,7 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
     const data=await r.json();
     if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
     if(!r.ok)throw new Error(data.error||"Không tạo được preview");
+    if(data.provider&&data.provider!=="local-runtime")recordUsage(data.provider,data.quota);
     setPreviewHtml(data.html);setPreview("");setPreviewType(data.previewType||"universal");setPlatform(data.platform||"web");setPreviewError("");
     saveCheckpoint(data.html,data.previewType||"universal",data.platform||"web",data.fallback?"local-runtime":data.provider);
     setMessages(m=>[...m,{role:"system",content:"✓ Đã build và đưa sản phẩm vào Live Preview bằng "+(data.provider||"local-runtime")+" · "+(data.platform||"web").toUpperCase()}]);
@@ -253,6 +275,7 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
       })});
       const data=await r.json();
       if(!r.ok)throw new Error(data.error||"Không sửa được preview");
+      if(data.provider&&data.provider!=="local-runtime")recordUsage(data.provider,data.quota);
       setPreviewHtml(data.html);setPreviewError("");setMessages(m=>[...m,{role:"system",content:"✓ Đã tự sửa lỗi runtime và cập nhật Live Preview."}]);
       setNotice(data.fallback?"⚙ AI FREE unavailable — đã dùng Local Runtime fallback.":"✓ Preview đã được sửa.");
     }catch(e){setNotice("✕ Không tự sửa được: "+e.message)}
@@ -334,8 +357,8 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
           const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"chat",mode:"auto",prompt:user,history:[...history,{role:"user",content:user}],providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected})});
           const data=await r.json();
           if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
-          if(r.ok&&data.text)setMessages(m=>[...m,{role:"assistant",content:data.text}]);
-          else setLogs(l=>[...l,"AI chat không khả dụng sau build; giữ artifact đã build."]);
+          if(r.ok&&data.text){if(data.provider)recordUsage(data.provider,data.quota);setMessages(m=>[...m,{role:"assistant",content:data.text}]);
+          } else setLogs(l=>[...l,"AI chat không khả dụng sau build; giữ artifact đã build."]);
         }catch(e){setLogs(l=>[...l,"AI chat fallback: "+e.message])}
       }else{
         setLogs(l=>[...l,"AI chat bỏ qua vì chưa có FREE provider; Local Runtime vẫn build được."]);
@@ -385,7 +408,7 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
     </aside>
 
     <main className="main">
-      <header className="topbar"><div className="status"><span className="dot"/>{enabled.length} provider sẵn sàng</div><div className="row"><button className="btn" onClick={newChat}>+ Chat mới</button><button className="btn" onClick={()=>setTab("settings")}>Manage AI</button></div></header>
+      <header className="topbar"><div className="status"><span className="dot"/>{enabled.length} provider sẵn sàng</div><div className="usage-top">{enabled.slice(0,3).map(p=>{const q=usageInfo(p.id);return <div className="usage-chip" key={p.id}><div className="usage-chip-head"><span>{p.id==="google"?"Gemini":p.id==="groq"?"Groq":"OpenRouter"}</span><b>{q.remaining!=null?`${q.remaining} còn`:`${q.u.used||0} lượt`}</b></div><div className="usage-bar"><i style={{width:`${q.percent!=null?q.percent:Math.max(8,Math.min(100,100-(q.u.used||0)*4))}%`}}/></div>})}</div><div className="row"><button className="btn" onClick={newChat}>+ Chat mới</button><button className="btn" onClick={()=>setTab("settings")}>Manage AI</button></div></header>
       <div className="content">
         {tab==="workspace"&&<section className="workspace">
           <div className="hero"><div><div className="eyebrow">AI SOFTWARE FACTORY</div><h1>Một ô nói chuyện. Một ô thấy sản phẩm.</h1><p>Không cần AI Code Studio riêng. Mô tả → AI hiểu → tự build → tự đưa sản phẩm vào Preview.</p></div><div className="row"><button className="btn" onClick={newProject}>+ New project</button><button className="btn primary" onClick={saveProject}>Save</button></div></div>
@@ -424,7 +447,7 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
             <div className="provider-head"><div><div className="provider-name">{p.name} <span className="pill ok">FREE</span></div><span className="pill">{p.id}</span></div><button className={"switch "+(p.enabled?"on":"")} onClick={()=>toggle(p.id)}/></div>
             <div className="field"><label>Model</label><select value={p.model||""} onChange={e=>update(p.id,{model:e.target.value})}>{models[p.id]?.length?models[p.id].map(m=><option key={m.id} value={m.id}>{m.name}</option>):<option value={p.model}>{p.model}</option>}</select></div>
             <div className="field"><label>API key</label><input type="password" value={p.key||""} onChange={e=>update(p.id,{key:e.target.value})} placeholder={p.placeholder}/></div>
-            <div className="provider-actions"><button className="btn" onClick={()=>loadModels(p)} disabled={loadingModels[p.id]}>{loadingModels[p.id]?"Đang tải…":"↻ Models"}</button><button className="btn" onClick={()=>testProvider(p)}>Test</button><button className="btn" onClick={()=>clearKey(p.id)}>Clear</button><a className="btn primary" href={p.keyUrl} target="_blank" rel="noopener noreferrer">Lấy key ↗</a>{connection[p.id]&&<span className={"connection "+connection[p.id].status}>{connection[p.id].status==="connected"?"● OK":connection[p.id].status==="testing"?"○ ...":"× "+connection[p.id].message}</span>}</div>
+            <div className="provider-actions"><button className="btn" onClick={()=>loadModels(p)} disabled={loadingModels[p.id]}>{loadingModels[p.id]?"Đang tải…":"↻ Models"}</button><button className="btn" onClick={()=>testProvider(p)}>Test</button><button className="btn" onClick={()=>clearKey(p.id)}>Clear</button><a className="btn primary" href={p.keyUrl} target="_blank" rel="noopener noreferrer">Lấy key ↗</a>{connection[p.id]&&<span className={"connection "+connection[p.id].status}>{connection[p.id].status==="connected"?"● OK":connection[p.id].status==="testing"?"○ ...":"× "+connection[p.id].message}</span>}</div><div className="provider-usage"><div className="usage-line"><span>Dung lượng AI</span><b>{usageInfo(p.id).remaining!=null?`${usageInfo(p.id).remaining} lượt còn lại`:`${usageInfo(p.id).u.used||0} lượt đã dùng`}</b></div><div className="usage-bar big"><i style={{width:`${usageInfo(p.id).percent!=null?usageInfo(p.id).percent:Math.max(8,Math.min(100,100-(usageInfo(p.id).u.used||0)*4))}%`}}/></div><div className="usage-note">{usageInfo(p.id).limit?`Theo giới hạn API mà provider trả về: ${usageInfo(p.id).limit} lượt.`:"Provider chưa trả giới hạn quota qua API; thanh đang theo dõi lượt dùng trong Factory."}</div></div>
           </div>)}</div></div>
         </section>}
       </div>
