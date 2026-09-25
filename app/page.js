@@ -44,6 +44,8 @@ export default function Home(){
   const [mediaBusy,setMediaBusy]=useState(false);
   const [pipeline,setPipeline]=useState(["idle","idle","idle","idle"]);
   const [approval,setApproval]=useState(null);
+  const [previewError,setPreviewError]=useState("");
+  const previewRepairing=useRef(false);
   const messagesRef=useRef(null);
   const stickToBottomRef=useRef(true);
 
@@ -225,11 +227,42 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
     const data=await r.json();
     if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
     if(!r.ok)throw new Error(data.error||"Không tạo được preview");
-    setPreviewHtml(data.html);setPreview("");setPreviewType(data.previewType||"universal");setPlatform(data.platform||"web");
+    setPreviewHtml(data.html);setPreview("");setPreviewType(data.previewType||"universal");setPlatform(data.platform||"web");setPreviewError("");
     saveCheckpoint(data.html,data.previewType||"universal",data.platform||"web",data.fallback?"local-runtime":data.provider);
     setMessages(m=>[...m,{role:"system",content:"✓ Đã build và đưa sản phẩm vào Live Preview bằng "+(data.provider||"local-runtime")+" · "+(data.platform||"web").toUpperCase()}]);
     setNotice(data.fallback?"⚙ AI FREE đang unavailable — Local Runtime giữ Preview hoạt động.":"✓ Đã triển khai. Preview đã được cập nhật.");
   }
+
+  async function repairPreview(){
+    if(!previewHtml||previewRepairing.current)return;
+    previewRepairing.current=true;setBusy(true);setNotice("⚙ Đang tự sửa lỗi Live Preview…");
+    try{
+      const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
+        action:"build",
+        prompt:"Sửa lỗi runtime của sản phẩm hiện tại. Giữ nguyên chức năng, giao diện và nền tảng. Lỗi runtime ghi nhận: "+previewError,
+        history:[...messages.slice(-10),{role:"user",content:"Runtime error: "+previewError}],
+        providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),
+        selected,
+        existingHtml:previewHtml
+      })});
+      const data=await r.json();
+      if(!r.ok)throw new Error(data.error||"Không sửa được preview");
+      setPreviewHtml(data.html);setPreviewError("");setMessages(m=>[...m,{role:"system",content:"✓ Đã tự sửa lỗi runtime và cập nhật Live Preview."}]);
+      setNotice(data.fallback?"⚙ AI FREE unavailable — đã dùng Local Runtime fallback.":"✓ Preview đã được sửa.");
+    }catch(e){setNotice("✕ Không tự sửa được: "+e.message)}
+    finally{previewRepairing.current=false;setBusy(false)}
+  }
+
+  useEffect(()=>{
+    function onPreviewMessage(e){
+      if(e.data?.source!=="asf-preview-error")return;
+      const msg=String(e.data.message||"Lỗi JavaScript trong preview");
+      setPreviewError(msg);
+      setNotice("⚠ Live Preview phát hiện lỗi: "+msg);
+    }
+    window.addEventListener("message",onPreviewMessage);
+    return()=>window.removeEventListener("message",onPreviewMessage);
+  },[]);
 
   async function run(){
     if(!prompt.trim()||busy)return;
@@ -364,7 +397,7 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
 
             <div className="card preview-card">
               <div className="preview-head"><div><h2>Live Preview</h2><div className="muted">{previewType==="device-simulator"?"Device Simulator":previewType==="web-live"?"Web Runtime":"Universal Runtime"} · {platform.toUpperCase()}</div></div><div className="row">{previewHtml&&<><span className="pill ok">● RUNNING</span><button className="btn" onClick={downloadSource}>↓ Source</button></>}</div></div>
-              {previewHtml?<div className={"live-frame "+(previewType==="device-simulator"?"device-preview":"")}><div className="live-frame-head"><b>{previewType==="device-simulator"?"DEVICE SIMULATOR":platform==="web"?"WEB APP":"LIVE APP"}</b><span>Interactive · Universal Preview</span></div><iframe title="AI Factory Live Preview" srcDoc={previewHtml} sandbox="allow-scripts allow-forms allow-modals"/></div>:preview?<div className="live-frame"><div className="live-frame-head"><b>DEPLOYED</b><a href={preview} target="_blank" rel="noreferrer">Mở ↗</a></div><iframe title="Deployed Preview" src={preview}/></div>:<div className="preview-empty"><div><div className="preview-icon">◫</div><strong>Preview sẽ xuất hiện ở đây</strong><p>Chỉ cần nói app mày muốn làm. Factory sẽ tự build và render sản phẩm tại đây.</p></div></div>}
+              {previewHtml?<div className={"live-frame "+(previewType==="device-simulator"?"device-preview":"")}><div className="live-frame-head"><b>{previewType==="device-simulator"?"DEVICE SIMULATOR":platform==="web"?"WEB APP":"LIVE APP"}</b><span>Interactive · Universal Preview</span></div><iframe title="AI Factory Live Preview" srcDoc={previewHtml} sandbox="allow-scripts allow-forms allow-modals"/>{previewError&&<div className="preview-error"><span>⚠ {previewError}</span><button className="btn" disabled={busy} onClick={repairPreview}>{busy?"Đang sửa…":"Tự sửa lỗi"}</button></div>}</div>:preview?<div className="live-frame"><div className="live-frame-head"><b>DEPLOYED</b><a href={preview} target="_blank" rel="noreferrer">Mở ↗</a></div><iframe title="Deployed Preview" src={preview}/></div>:<div className="preview-empty"><div><div className="preview-icon">◫</div><strong>Preview sẽ xuất hiện ở đây</strong><p>Chỉ cần nói app mày muốn làm. Factory sẽ tự build và render sản phẩm tại đây.</p></div></div>}
               <div className="review"><div className="metric"><b>{enabled.length}</b><span>FREE AI</span></div><div className="metric"><b>{messages.filter(x=>x.role==="user").length}</b><span>Yêu cầu</span></div><div className="metric"><b>{logs.length}</b><span>Pipeline</span></div></div>
               <div className="pipeline"><div className="pipeline-title">FACTORY PIPELINE</div>{["Understand","Plan","Build","Preview"].map((x,i)=><div className={"pipeline-step "+(pipeline[i]==="running"?"running":pipeline[i]==="done"?"done":pipeline[i]==="error"?"error":"")} key={x}><span>{pipeline[i]==="done"?"✓":i+1}</span>{x}</div>)}</div>{versions.length>0&&<div className="version-strip"><div className="row" style={{justifyContent:"space-between"}}><b>CHECKPOINTS</b><span className="muted">{versions.length} phiên bản</span></div><div className="version-list">{versions.slice().reverse().map(v=><button className="version-btn" key={v.id} onClick={()=>rollbackVersion(v)}>v{v.number} · {v.source} · {new Date(v.createdAt).toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})}</button>)}</div></div>}
             </div>
