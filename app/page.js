@@ -3,17 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 
 const DEFAULTS = [
-  {id:"openai",name:"OpenAI",model:"gpt-5",placeholder:"sk-...",enabled:false},
-  {id:"anthropic",name:"Anthropic",model:"claude-sonnet-4-5",placeholder:"sk-ant-...",enabled:false},
-  {id:"google",name:"Google Gemini",model:"gemini-2.5-flash",placeholder:"AIza...",enabled:false},
-  {id:"openrouter",name:"OpenRouter",model:"openai/gpt-5",placeholder:"sk-or-...",enabled:false}
+  {id:"openai",name:"OpenAI",model:"gpt-5",placeholder:"sk-...",enabled:false,keyUrl:"https://platform.openai.com/api-keys"},
+  {id:"anthropic",name:"Anthropic",model:"claude-sonnet-4-5",placeholder:"sk-ant-...",enabled:false,keyUrl:"https://console.anthropic.com/"},
+  {id:"google",name:"Google Gemini",model:"gemini-2.5-flash",placeholder:"AIza...",enabled:false,keyUrl:"https://aistudio.google.com/app/apikey"},
+  {id:"openrouter",name:"OpenRouter",model:"openai/gpt-5",placeholder:"sk-or-...",enabled:false,keyUrl:"https://openrouter.ai/settings/keys"}
 ];
 
 function loadProviders(){
   if(typeof window==="undefined") return DEFAULTS;
   try{
     const saved=JSON.parse(localStorage.getItem("asf.providers")||"null");
-    return saved?.length?saved:DEFAULTS;
+    if(!saved?.length) return DEFAULTS;
+    return saved.map(p=>{
+      const d=DEFAULTS.find(x=>x.id===p.id);
+      return d ? {...d,...p,keyUrl:d.keyUrl} : p;
+    });
   }catch{return DEFAULTS}
 }
 
@@ -104,7 +108,7 @@ export default function Home(){
               <div className="provider-head"><div><div className="provider-name">{p.name}</div><span className="pill">{p.id}</span></div><button className={"switch "+(p.enabled?"on":"")} onClick={()=>toggle(p.id)} aria-label="toggle"/></div>
               <div className="field"><label>Model</label><input value={p.model||""} onChange={e=>update(p.id,{model:e.target.value})} placeholder="model name"/></div>
               <div className="field"><label>API key</label><input type="password" value={p.key||""} onChange={e=>update(p.id,{key:e.target.value})} placeholder={p.placeholder}/></div>
-              <div className="provider-actions"><button className="btn" onClick={()=>testProvider(p)}>Test connection</button><button className="btn" onClick={()=>clearKey(p.id)}>Clear key</button></div>
+              <div className="provider-actions"><button className="btn" onClick={()=>testProvider(p)}>Test connection</button><button className="btn" onClick={()=>clearKey(p.id)}>Clear key</button><a className="btn primary" href={p.keyUrl} target="_blank" rel="noopener noreferrer">Lấy API key ↗</a></div>
             </div>)}</div>
           </div>
         </section>}
