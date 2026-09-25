@@ -105,8 +105,8 @@ export async function POST(req){
       const ordered=b.selected&&b.selected!=="auto"?[...list.filter(x=>x.id===b.selected),...list.filter(x=>x.id!==b.selected)]:list;
       const contextText=conversationInstruction(b.history,b.prompt);
       const allContext=(String(b.prompt||"")+"\\n"+String(b.history||[])).toLowerCase();
-      const platformAndroid=/\\bandroi(?:d)?\\b|android\\s*(phone|điện thoại|app)?/.test(allContext);
-      const platformIOS=/\\b(ios|iphone|ipad)\\b/.test(allContext);
+      const platformAndroid=/\bandroi(?:d)?\b|android\s*(phone|điện thoại|app)?/.test(allContext);
+      const platformIOS=/\b(ios|iphone|ipad)\b/.test(allContext);
       const platform=platformAndroid?"android":platformIOS?"ios":"web";
       const targetNote=platform==="android"
         ?"TARGET IS ANDROID. Do NOT switch to Web as the product target. Create a polished Android-style simulator preview of the requested app so it can be interacted with immediately in the browser. Preserve Android as the target; the browser preview is only a live simulator."
