@@ -143,7 +143,7 @@ export default function Home(){
       const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"chat",mode:"auto",prompt:user,history,providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected})});
       const data=await r.json();if(data.logs?.length)setLogs(l=>[...l,...data.logs]);if(!r.ok)throw new Error(data.error||"AI request failed");
       setMessages(m=>[...m,{role:"assistant",content:data.text||"Đã hiểu yêu cầu."}]);
-      await apiBuild(user,[...history,{role:"user",content:user},{role:"assistant",content:data.text||""}]);
+      await apiBuild(user,[...history,{role:"user",content:user},{role:"assistant",content:data.text||""}],hasCurrentProduct?previewHtml:"");
     }catch(e){
       setMessages(m=>[...m,{role:"assistant",content:"Lỗi: "+e.message}]);setLogs(l=>[...l,"Factory: thất bại — "+e.message]);setNotice("✕ "+e.message);
     }finally{setBusy(false)}
