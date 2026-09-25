@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 const DEFAULTS = [
   {id:"google",name:"Google Gemini — FREE",model:"gemini-2.5-flash",placeholder:"AIza...",enabled:false,keyUrl:"https://aistudio.google.com/app/apikey",free:true},
   {id:"groq",name:"Groq — FREE",model:"openai/gpt-oss-20b",placeholder:"gsk_...",enabled:false,keyUrl:"https://console.groq.com/keys",free:true},
-  {id:"cerebras",name:"Cerebras — FREE",model:"llama3.1-8b",placeholder:"csk-...",enabled:false,keyUrl:"https://cloud.cerebras.ai/",free:true},
+  {id:"cerebras",name:"Cerebras — FREE TRIAL",model:"llama3.1-8b",placeholder:"csk-...",enabled:false,keyUrl:"https://cloud.cerebras.ai/",free:true},
   {id:"openrouter",name:"OpenRouter — FREE",model:"openrouter/free",placeholder:"sk-or-...",enabled:false,keyUrl:"https://openrouter.ai/settings/keys",free:true}
 ];
 
