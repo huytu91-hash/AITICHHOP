@@ -119,6 +119,9 @@ export default function Home(){
     if(!enabled.length){setNotice("Chưa có AI FREE provider nào được bật và có key.");setTab("settings");return}
     const user=prompt.trim();
     const history=messages.slice(-12);
+    const hasCurrentProduct=Boolean(previewHtml);
+    const vagueEdit=/^(chỉnh sửa được không|sửa được không|có chỉnh sửa được không|edit được không|có sửa được không)[?!.,\s]*$/i.test(user);
+    const editIntent=hasCurrentProduct && /\b(chỉnh|sửa|thêm|bớt|xóa|xoá|đổi|thay|bỏ|gỡ|nút|giao diện|tính năng|màu|font|nội dung|layout|màn hình)\b/i.test(user);
     setPrompt("");setMessages(m=>[...m,{role:"user",content:user}]);setBusy(true);
     setLogs(l=>[...l,"Factory: hiểu yêu cầu → chọn AI → build → preview"]);
     try{
