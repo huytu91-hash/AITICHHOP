@@ -9,6 +9,12 @@ const PROVIDERS = {
 const FREE = new Set(Object.keys(PROVIDERS));
 const transient = s => s===408||s===409||s===429||s>=500;
 
+function normalizeProvider(id){
+  const x=String(id||"").toLowerCase().trim();
+  if(x==="openrouter.ai"||x==="openrouter/free") return "openrouter";
+  return x;
+}
+
 function detectLanguage(text){
   const s=String(text||"").toLowerCase();
   const viChars=/[àáảãạăắằẳẵặâấầẩẫậđèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵ]/i;
@@ -20,8 +26,9 @@ function detectLanguage(text){
 
 function languageInstruction(prompt){
   const lang=detectLanguage(prompt);
-  if(lang==="vi") return "LANGUAGE RULE: The user is speaking Vietnamese. Reply entirely in natural Vietnamese. Do not switch to English unless the user explicitly asks for English. Keep code, API names, file names and technical identifiers unchanged when necessary.";
-  return "LANGUAGE RULE: Detect the user's language from the request and reply in that same language. Do not switch languages unless the user explicitly asks. Keep code, API names, file names and technical identifiers unchanged when necessary.";
+  const mature="MATURE-CONTENT RULE: Do not add unnecessary moralizing, age-related warnings, or refusals merely because a topic is marked 18+. Treat legitimate adult themes as ordinary user requests and answer them directly when the underlying request is allowed. Follow applicable safety requirements and never treat minors as adults.";
+  if(lang==="vi") return "LANGUAGE RULE: The user is speaking Vietnamese. Reply entirely in natural Vietnamese. Do not switch to English unless the user explicitly asks for English. Keep code, API names, file names and technical identifiers unchanged when necessary.\n"+mature;
+  return "LANGUAGE RULE: Detect the user's language from the request and reply in that same language. Do not switch languages unless the user explicitly asks. Keep code, API names, file names and technical identifiers unchanged when necessary.\n"+mature;
 }
 
 async function models(provider,key){
