@@ -148,7 +148,7 @@ export default function Home(){
     const user=prompt.trim(); setPrompt(""); setMessages(m=>[...m,{role:"user",content:user}]); setBusy(true);
     setLogs(l=>[...l,"Router: bắt đầu xử lý yêu cầu..."]);
     try{
-      const payload={action:"chat",mode,prompt:user,providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected};
+      const payload={action:"chat",mode,prompt:user,history:messages.slice(-12),providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected};
       const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});
       const data=await r.json();
       if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
