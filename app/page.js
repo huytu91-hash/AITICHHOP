@@ -42,6 +42,7 @@ export default function Home(){
   const [mediaPrompt,setMediaPrompt]=useState("");
   const [mediaHistory,setMediaHistory]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.media")||"[]")}catch{return []}});
   const [mediaBusy,setMediaBusy]=useState(false);
+  const [pipeline,setPipeline]=useState(["idle","idle","idle","idle"]);
 
   useEffect(()=>{localStorage.setItem("asf.providers",JSON.stringify(providers));window.__ASF_PROVIDERS__=providers.filter(p=>p.free&&p.enabled&&p.key).map(p=>({id:p.id,key:p.key,model:p.model}));},[providers]);
   useEffect(()=>localStorage.setItem("asf.projects",JSON.stringify(projects)),[projects]);
@@ -91,7 +92,7 @@ export default function Home(){
   }
   function saveProject(){
     const id=activeProject||Date.now().toString();
-    const p={id,name:project||"Dự án chưa đặt tên",description:prompt,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),github:"",vercel:preview,previewHtml,previewType,platform,updatedAt:new Date().toISOString()};
+    const existing=projects.find(x=>x.id===id); const p={...existing,id,name:project||"Dự án chưa đặt tên",description:prompt,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),github:existing?.github||"",vercel:preview,previewHtml,previewType,platform,versions:existing?.versions||[],updatedAt:new Date().toISOString()};
     setProjects(xs=>{const i=xs.findIndex(x=>x.id===id);if(i<0)return[p,...xs];const a=[...xs];a[i]={...a[i],...p};return a});setActiveProject(id);setNotice("✓ Đã lưu dự án.");
   }
   function deleteProject(id){
@@ -101,6 +102,34 @@ export default function Home(){
     setNotice("Đã xóa dự án.");
   }
   function deleteChat(id){setChatSessions(x=>x.filter(c=>c.id!==id));if(activeChat===id){setActiveChat("");setMessages([]);setLogs([])}}
+  const currentProject=projects.find(p=>p.id===activeProject);
+  const versions=currentProject?.versions||[];
+  function saveCheckpoint(html,type,plat,source){
+    const now=new Date().toISOString();
+    const id=activeProject||Date.now().toString();
+    setActiveProject(id);
+    setProjects(xs=>{
+      const found=xs.find(p=>p.id===id);
+      const base=found||{id,name:project&&project!=="Untitled Project"?project:"Dự án mới",description:prompt,blueprint:"",github:"",vercel:""};
+      const previous=Array.isArray(base.versions)?base.versions:[];
+      const version={id:now,number:previous.length+1,html,type,platform:plat,source:source||"ai",createdAt:now};
+      const next={...base,previewHtml:html,previewType:type,platform:plat,versions:[...previous.slice(-9),version],updatedAt:now};
+      return found?xs.map(p=>p.id===id?next:p):[next,...xs];
+    });
+    setNotice("✓ Đã lưu checkpoint v"+((versions.length||0)+1)+". Có thể rollback.");
+  }
+  function rollbackVersion(v){
+    if(!v)return;
+    setPreviewHtml(v.html);setPreview("");setPreviewType(v.type||"universal");setPlatform(v.platform||"web");
+    setProjects(xs=>xs.map(p=>p.id===activeProject?{...p,previewHtml:v.html,previewType:v.type||"universal",platform:v.platform||"web",updatedAt:new Date().toISOString()}:p));
+    setNotice("↶ Đã rollback về v"+v.number+".");
+  }
+  function downloadSource(){
+    if(!previewHtml){setNotice("Chưa có sản phẩm để tải.");return}
+    const blob=new Blob([previewHtml],{type:"text/html;charset=utf-8"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(project||"ai-factory-app").toLowerCase().replace(/[^a-z0-9]+/gi,"-")+".html";a.click();URL.revokeObjectURL(a.href);
+    setNotice("✓ Đã chuẩn bị file source preview.");
+  }
 
   async function apiBuild(user,history,existingHtml=""){
     const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
@@ -110,8 +139,9 @@ export default function Home(){
     if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
     if(!r.ok)throw new Error(data.error||"Không tạo được preview");
     setPreviewHtml(data.html);setPreview("");setPreviewType(data.previewType||"universal");setPlatform(data.platform||"web");
-    setMessages(m=>[...m,{role:"system",content:"✓ Đã build và đưa sản phẩm vào Live Preview bằng "+data.provider+" · "+(data.platform||"web").toUpperCase()}]);
-    setNotice("✓ Đã triển khai. Preview đã được cập nhật.");
+    saveCheckpoint(data.html,data.previewType||"universal",data.platform||"web",data.fallback?"local-runtime":data.provider);
+    setMessages(m=>[...m,{role:"system",content:"✓ Đã build và đưa sản phẩm vào Live Preview bằng "+(data.provider||"local-runtime")+" · "+(data.platform||"web").toUpperCase()}]);
+    setNotice(data.fallback?"⚙ AI FREE đang unavailable — Local Runtime giữ Preview hoạt động.":"✓ Đã triển khai. Preview đã được cập nhật.");
   }
 
   async function run(){
@@ -140,12 +170,23 @@ export default function Home(){
       return;
     }
     try{
-      const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"chat",mode:"auto",prompt:user,history,providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected})});
-      const data=await r.json();if(data.logs?.length)setLogs(l=>[...l,...data.logs]);if(!r.ok)throw new Error(data.error||"AI request failed");
-      setMessages(m=>[...m,{role:"assistant",content:data.text||"Đã hiểu yêu cầu."}]);
-      await apiBuild(user,[...history,{role:"user",content:user},{role:"assistant",content:data.text||""}],hasCurrentProduct?previewHtml:"");
+      setPipeline(["done","running","idle","idle"]);
+      await apiBuild(user,[...history,{role:"user",content:user}],hasCurrentProduct?previewHtml:"");
+      setPipeline(["done","done","running","running"]);
+      if(enabled.length){
+        try{
+          const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"chat",mode:"auto",prompt:user,history:[...history,{role:"user",content:user}],providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected})});
+          const data=await r.json();
+          if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
+          if(r.ok&&data.text)setMessages(m=>[...m,{role:"assistant",content:data.text}]);
+          else setLogs(l=>[...l,"AI chat không khả dụng sau build; giữ artifact đã build."]);
+        }catch(e){setLogs(l=>[...l,"AI chat fallback: "+e.message])}
+      }else{
+        setLogs(l=>[...l,"AI chat bỏ qua vì chưa có FREE provider; Local Runtime vẫn build được."]);
+      }
+      setPipeline(["done","done","done","done"]);
     }catch(e){
-      setMessages(m=>[...m,{role:"assistant",content:"Lỗi: "+e.message}]);setLogs(l=>[...l,"Factory: thất bại — "+e.message]);setNotice("✕ "+e.message);
+      setMessages(m=>[...m,{role:"assistant",content:"Lỗi build: "+e.message}]);setLogs(l=>[...l,"Factory: thất bại — "+e.message]);setNotice("✕ "+e.message);setPipeline(["done","error","idle","idle"]);
     }finally{setBusy(false)}
   }
 
@@ -205,10 +246,10 @@ export default function Home(){
             </div>
 
             <div className="card preview-card">
-              <div className="preview-head"><div><h2>Live Preview</h2><div className="muted">{previewType==="device-simulator"?"Device Simulator":previewType==="web-live"?"Web Runtime":"Universal Runtime"} · {platform.toUpperCase()}</div></div>{previewHtml&&<span className="pill ok">● RUNNING</span>}</div>
+              <div className="preview-head"><div><h2>Live Preview</h2><div className="muted">{previewType==="device-simulator"?"Device Simulator":previewType==="web-live"?"Web Runtime":"Universal Runtime"} · {platform.toUpperCase()}</div></div><div className="row">{previewHtml&&<><span className="pill ok">● RUNNING</span><button className="btn" onClick={downloadSource}>↓ Source</button></>}</div></div>
               {previewHtml?<div className={"live-frame "+(previewType==="device-simulator"?"device-preview":"")}><div className="live-frame-head"><b>{previewType==="device-simulator"?"DEVICE SIMULATOR":platform==="web"?"WEB APP":"LIVE APP"}</b><span>Interactive · Universal Preview</span></div><iframe title="AI Factory Live Preview" srcDoc={previewHtml} sandbox="allow-scripts allow-forms allow-modals"/></div>:preview?<div className="live-frame"><div className="live-frame-head"><b>DEPLOYED</b><a href={preview} target="_blank" rel="noreferrer">Mở ↗</a></div><iframe title="Deployed Preview" src={preview}/></div>:<div className="preview-empty"><div><div className="preview-icon">◫</div><strong>Preview sẽ xuất hiện ở đây</strong><p>Chỉ cần nói app mày muốn làm. Factory sẽ tự build và render sản phẩm tại đây.</p></div></div>}
               <div className="review"><div className="metric"><b>{enabled.length}</b><span>FREE AI</span></div><div className="metric"><b>{messages.filter(x=>x.role==="user").length}</b><span>Yêu cầu</span></div><div className="metric"><b>{logs.length}</b><span>Pipeline</span></div></div>
-              <div className="pipeline"><div className="pipeline-title">FACTORY PIPELINE</div>{["Understand","Build","Verify","Preview"].map((x,i)=><div className={"pipeline-step "+(busy&&i<3?"running":"")} key={x}><span>{i+1}</span>{x}</div>)}</div>
+              <div className="pipeline"><div className="pipeline-title">FACTORY PIPELINE</div>{["Understand","Build","Verify","Preview"].map((x,i)=><div className={"pipeline-step "+(pipeline[i]==="running"?"running":pipeline[i]==="done"?"done":pipeline[i]==="error"?"error":"")} key={x}><span>{pipeline[i]==="done"?"✓":i+1}</span>{x}</div>)}</div>{versions.length>0&&<div className="version-strip"><div className="row" style={{justifyContent:"space-between"}}><b>CHECKPOINTS</b><span className="muted">{versions.length} phiên bản</span></div><div className="version-list">{versions.slice().reverse().map(v=><button className="version-btn" key={v.id} onClick={()=>rollbackVersion(v)}>v{v.number} · {v.source} · {new Date(v.createdAt).toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})}</button>)}</div></div>}
             </div>
           </div>
           <div className="card logs-card"><div className="row" style={{justifyContent:"space-between"}}><h2>Factory logs</h2><span className="muted">Không dùng AI trả phí</span></div><div className="logs">{logs.length?logs.slice(-16).map((x,i)=><div className="log" key={i}>{x}</div>):<div className="log">Factory idle.</div>}</div></div>
