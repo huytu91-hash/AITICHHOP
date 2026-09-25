@@ -171,7 +171,8 @@ export async function POST(req){
 "- Verify responsive behavior for narrow mobile width and desktop width.\n"+
 "- Verify the initial state is useful and visually complete.\n"+
 "- If a feature cannot be fully implemented without an external service, simulate it locally with realistic state and clearly keep it functional rather than leaving a dead button.\n\n"+
-"USER REQUEST:\n"+b.prompt;\n      const logs=[]; let last="";
+"USER REQUEST:\n"+b.prompt;
+      const logs=[]; let last="";
       for(const p of ordered){logs.push("FREE Build Router → "+p.id+" / "+(p.model||"default"));try{
         const result=await call({...p,prompt:buildPrompt});
         const text=result.text;
