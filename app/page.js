@@ -129,7 +129,7 @@ export default function Home(){
             </div>
           </div>
         </section>:<section className="settings">
-          <div className="hero"><div><div className="eyebrow">Settings</div><h1>AI Providers</h1><p>Nhập key trực tiếp trong app. Key được lưu trong localStorage của trình duyệt hiện tại và không được ghi vào GitHub.</p></div><button className="btn" onClick={()=>setNotice("FREE ONLY: Gemini, Groq, Cerebras và OpenRouter. Không dùng API trả phí.")}>+ Custom provider</button></div>
+          <div className="hero"><div><div className="eyebrow">Settings</div><h1>AI Providers</h1><p>Nhập key trực tiếp trong app. Key được lưu trong localStorage của trình duyệt hiện tại và không được ghi vào GitHub.</p></div><button className="btn" onClick={()=>setNotice("FREE ONLY: Gemini, Groq và OpenRouter. Không dùng API trả phí.")}>+ Custom provider</button></div>
           {notice&&<div className="card" style={{marginBottom:14}}>{notice}</div>}
           <div className="card"><h2>Provider pool</h2><div className="muted">FREE ONLY — Router chỉ dùng provider có free tier và tự chuyển khi nguồn bị giới hạn.</div>
             <div className="providers">{providers.map(p=><div className="provider" key={p.id}>
