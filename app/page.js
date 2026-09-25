@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 const DEFAULTS = [
-  {id:"openai",name:"OpenAI",model:"gpt-5",placeholder:"sk-...",enabled:false,keyUrl:"https://platform.openai.com/api-keys"},
-  {id:"anthropic",name:"Anthropic",model:"claude-sonnet-4-5",placeholder:"sk-ant-...",enabled:false,keyUrl:"https://console.anthropic.com/"},
-  {id:"google",name:"Google Gemini",model:"gemini-2.5-flash",placeholder:"AIza...",enabled:false,keyUrl:"https://aistudio.google.com/app/apikey"},
-  {id:"openrouter",name:"OpenRouter",model:"openai/gpt-5",placeholder:"sk-or-...",enabled:false,keyUrl:"https://openrouter.ai/settings/keys"}
+  {id:"google",name:"Google Gemini — FREE",model:"gemini-2.5-flash",placeholder:"AIza...",enabled:false,keyUrl:"https://aistudio.google.com/app/apikey",free:true},
+  {id:"groq",name:"Groq — FREE",model:"openai/gpt-oss-20b",placeholder:"gsk_...",enabled:false,keyUrl:"https://console.groq.com/keys",free:true},
+  {id:"cerebras",name:"Cerebras — FREE",model:"llama3.1-8b",placeholder:"csk-...",enabled:false,keyUrl:"https://cloud.cerebras.ai/",free:true},
+  {id:"openrouter",name:"OpenRouter — FREE",model:"openrouter/free",placeholder:"sk-or-...",enabled:false,keyUrl:"https://openrouter.ai/settings/keys",free:true}
 ];
 
 function loadProviders(){
@@ -37,7 +37,7 @@ export default function Home(){
 
   useEffect(()=>localStorage.setItem("asf.providers",JSON.stringify(providers)),[providers]);
 
-  const enabled=useMemo(()=>providers.filter(p=>p.enabled&&p.key),[providers]);
+  const enabled=useMemo(()=>providers.filter(p=>p.free&&p.enabled&&p.key),[providers]);
 
   function update(id,patch){setProviders(ps=>ps.map(p=>p.id===id?{...p,...patch}:p))}
   function toggle(id){setProviders(ps=>ps.map(p=>p.id===id?{...p,enabled:!p.enabled}:p))}
@@ -120,11 +120,11 @@ export default function Home(){
             </div>
           </div>
         </section>:<section className="settings">
-          <div className="hero"><div><div className="eyebrow">Settings</div><h1>AI Providers</h1><p>Nhập key trực tiếp trong app. Key được lưu trong localStorage của trình duyệt hiện tại và không được ghi vào GitHub.</p></div><button className="btn" onClick={()=>setNotice("4 adapter đang có sẵn: OpenAI, Anthropic, Gemini và OpenRouter. Custom endpoint sẽ thêm ở bước tiếp theo.")}>+ Custom provider</button></div>
+          <div className="hero"><div><div className="eyebrow">Settings</div><h1>AI Providers</h1><p>Nhập key trực tiếp trong app. Key được lưu trong localStorage của trình duyệt hiện tại và không được ghi vào GitHub.</p></div><button className="btn" onClick={()=>setNotice("FREE ONLY: Gemini, Groq, Cerebras và OpenRouter. Không dùng API trả phí.")}>+ Custom provider</button></div>
           {notice&&<div className="card" style={{marginBottom:14}}>{notice}</div>}
-          <div className="card"><h2>Provider pool</h2><div className="muted">Router chỉ dùng provider đang bật và có key.</div>
+          <div className="card"><h2>Provider pool</h2><div className="muted">FREE ONLY — Router chỉ dùng provider có free tier và tự chuyển khi nguồn bị giới hạn.</div>
             <div className="providers">{providers.map(p=><div className="provider" key={p.id}>
-              <div className="provider-head"><div><div className="provider-name">{p.name}</div><span className="pill">{p.id}</span></div><button className={"switch "+(p.enabled?"on":"")} onClick={()=>toggle(p.id)} aria-label="toggle"/></div>
+              <div className="provider-head"><div><div className="provider-name">{p.name} <span className="pill ok">FREE</span></div><span className="pill">{p.id}</span></div><button className={"switch "+(p.enabled?"on":"")} onClick={()=>toggle(p.id)} aria-label="toggle"/></div>
               <div className="field"><label>Model</label><select value={p.model||""} onChange={e=>update(p.id,{model:e.target.value})}>
                 {models[p.id]?.length?<>{models[p.id].map(m=><option key={m.id} value={m.id}>{m.name}{m.id!==m.name?" — "+m.id:""}</option>)}</>:<option value={p.model||""}>{p.model||"Chưa tải model"}</option>}
               </select></div>
