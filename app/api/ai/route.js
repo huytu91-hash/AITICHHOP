@@ -9,6 +9,21 @@ const PROVIDERS = {
 const FREE = new Set(Object.keys(PROVIDERS));
 const transient = s => s===408||s===409||s===429||s>=500;
 
+function detectLanguage(text){
+  const s=String(text||"").toLowerCase();
+  const viChars=/[àáảãạăắằẳẵặâấầẩẫậđèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵ]/i;
+  if(viChars.test(s)) return "vi";
+  const viWords=/\b(có|không|được|mình|tôi|bạn|muốn|làm|giúp|app|ứng|dụng|xây|sửa|tạo|cho|này|với|như|thế|nào|đi|nhé|mày|tao|anh|em|chị|chúng|tôi|của|và|là|trong|theo|đang|cần|biết)\b/i;
+  if(viWords.test(s)) return "vi";
+  return "en";
+}
+
+function languageInstruction(prompt){
+  const lang=detectLanguage(prompt);
+  if(lang==="vi") return "LANGUAGE RULE: The user is speaking Vietnamese. Reply entirely in natural Vietnamese. Do not switch to English unless the user explicitly asks for English. Keep code, API names, file names and technical identifiers unchanged when necessary.";
+  return "LANGUAGE RULE: Detect the user's language from the request and reply in that same language. Do not switch languages unless the user explicitly asks. Keep code, API names, file names and technical identifiers unchanged when necessary.";
+}
+
 async function models(provider,key){
   let url="",headers={};
   if(provider==="google") url="https://generativelanguage.googleapis.com/v1beta/models?key="+encodeURIComponent(key)+"&pageSize=1000";
@@ -37,7 +52,35 @@ export async function POST(req){
   try{
     const b=await req.json();
     if(b.action==="models"){b.provider=normalizeProvider(b.provider);if(!FREE.has(b.provider))return NextResponse.json({error:"Chỉ cho phép FREE provider."},{status:403});return NextResponse.json({ok:true,models:await models(b.provider,b.key)})}
-    if(b.action==="test"){if(!FREE.has(b.provider))return NextResponse.json({error:"Provider bị chặn vì không thuộc FREE ONLY."},{status:403});await call({...b,prompt:"Reply with exactly: CONNECTION_OK"});return NextResponse.json({ok:true})}
+    if(b.action==="test"){
+      const provider=normalizeProvider(b.provider);
+      if(provider==="openrouter"){
+        const key=String(b.key||"").trim();
+        if(!key)return NextResponse.json({error:"Thiếu OpenRouter API key."},{status:400});
+        const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{
+          method:"POST",
+          cache:"no-store",
+          headers:{
+            Authorization:"Bearer "+key,
+            "Content-Type":"application/json",
+            "HTTP-Referer":"https://aitichhop.vercel.app",
+            "X-Title":"AI Software Factory"
+          },
+          body:JSON.stringify({
+            model:"openrouter/free",
+            messages:[{role:"user",content:"Reply with exactly: CONNECTION_OK"}],
+            max_tokens:16
+          })
+        });
+        const raw=await r.text();
+        let d; try{d=JSON.parse(raw)}catch{d={error:{message:raw}}}
+        if(!r.ok)return NextResponse.json({error:d?.error?.message||d?.message||("OpenRouter HTTP "+r.status),status:r.status},{status:r.status});
+        return NextResponse.json({ok:true,provider:"openrouter",model:"openrouter/free"});
+      }
+      if(!FREE.has(provider))return NextResponse.json({error:"Provider bị chặn vì không thuộc FREE ONLY."},{status:403});
+      await call({...b,id:provider,prompt:"Reply with exactly: CONNECTION_OK"});
+      return NextResponse.json({ok:true,provider});
+    }
     const list=(b.providers||[]).filter(x=>x?.key&&FREE.has(x.id));
     if(!list.length)return NextResponse.json({error:"Chưa có FREE provider khả dụng."},{status:400});
     const ordered=b.selected&&b.selected!=="auto"?[...list.filter(x=>x.id===b.selected),...list.filter(x=>x.id!==b.selected)]:list;
@@ -47,7 +90,7 @@ export async function POST(req){
       build:"You are the implementation engineer. Use the user's requirements and any existing plan/context to produce concrete implementation steps and code-oriented output. Prefer small verifiable changes.",
       review:"You are a senior reviewer. Inspect the provided requirements/output, identify bugs, missing requirements, security issues and architectural risks, then propose precise fixes."
     }[b.mode||"auto"];
-    const routedPrompt=workflow+"\n\nUSER REQUEST:\n"+b.prompt;
+    const routedPrompt=languageInstruction(b.prompt)+"\n\n"+workflow+"\n\nUSER REQUEST:\n"+b.prompt;
     const logs=[]; let last="";
     for(const p of ordered){logs.push("FREE Router → "+p.id+" / "+(p.model||"default"));try{const text=await call({...p,prompt:routedPrompt});logs.push("✓ "+p.id+" OK");return NextResponse.json({text,provider:p.id,logs})}catch(e){last=e.message;logs.push((transient(e.status)?"↪ ":"✕ ")+p.id+": "+e.message)}}
     return NextResponse.json({error:"Tất cả nguồn FREE hiện không khả dụng. Không chuyển sang nguồn trả phí.",logs,lastError:last},{status:502});
