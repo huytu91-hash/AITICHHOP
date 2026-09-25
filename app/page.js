@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import EngineeringWorkspace from "./components/EngineeringWorkspace";
 
-const DEFAULTS = [
+const DEFAULTS=[
   {id:"google",name:"Google Gemini — FREE",model:"gemini-2.5-flash",placeholder:"AIza...",enabled:false,keyUrl:"https://aistudio.google.com/app/apikey",free:true},
   {id:"groq",name:"Groq — FREE",model:"openai/gpt-oss-20b",placeholder:"gsk_...",enabled:false,keyUrl:"https://console.groq.com/keys",free:true},
   {id:"openrouter",name:"OpenRouter — FREE",model:"openrouter/free",placeholder:"sk-or-...",enabled:false,keyUrl:"https://openrouter.ai/settings/keys",free:true}
@@ -14,10 +13,7 @@ function loadProviders(){
   try{
     const saved=JSON.parse(localStorage.getItem("asf.providers")||"null");
     if(!saved?.length) return DEFAULTS;
-    return DEFAULTS.map(d=>{
-      const p=saved.find(x=>x.id===d.id);
-      return p ? {...d,...p,keyUrl:d.keyUrl,free:true} : d;
-    });
+    return DEFAULTS.map(d=>{const p=saved.find(x=>x.id===d.id);return p?{...d,...p,keyUrl:d.keyUrl,free:true}:d});
   }catch{return DEFAULTS}
 }
 
@@ -32,11 +28,12 @@ export default function Home(){
   const [project,setProject]=useState("Untitled Project");
   const [preview,setPreview]=useState("");
   const [previewHtml,setPreviewHtml]=useState("");
+  const [previewType,setPreviewType]=useState("web-live");
+  const [platform,setPlatform]=useState("web");
   const [notice,setNotice]=useState("");
   const [models,setModels]=useState({});
   const [loadingModels,setLoadingModels]=useState({});
   const [connection,setConnection]=useState({});
-  const [mode,setMode]=useState("auto");
   const [projects,setProjects]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.projects")||"[]")}catch{return []}});
   const [activeProject,setActiveProject]=useState("");
   const [chatSessions,setChatSessions]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.chats")||"[]")}catch{return []}});
@@ -48,70 +45,90 @@ export default function Home(){
 
   useEffect(()=>{localStorage.setItem("asf.providers",JSON.stringify(providers));window.__ASF_PROVIDERS__=providers.filter(p=>p.free&&p.enabled&&p.key).map(p=>({id:p.id,key:p.key,model:p.model}));},[providers]);
   useEffect(()=>localStorage.setItem("asf.projects",JSON.stringify(projects)),[projects]);
-  useEffect(()=>localStorage.setItem("asf.media",JSON.stringify(mediaHistory)),[mediaHistory]);
   useEffect(()=>localStorage.setItem("asf.chats",JSON.stringify(chatSessions)),[chatSessions]);
+  useEffect(()=>localStorage.setItem("asf.media",JSON.stringify(mediaHistory)),[mediaHistory]);
   useEffect(()=>{
     if(!activeChat||!messages.length)return;
-    const t=setTimeout(()=>{
-      const chat={id:activeChat,name:project||"Cuộc trò chuyện mới",projectId:activeProject,messages,logs,updatedAt:new Date().toISOString()};
-      setChatSessions(xs=>{const i=xs.findIndex(x=>x.id===chat.id);if(i<0)return[chat,...xs];const a=[...xs];a[i]={...a[i],...chat};return a});
-    },500);
+    const t=setTimeout(()=>setChatSessions(xs=>{
+      const chat={id:activeChat,name:project||"Cuộc trò chuyện",projectId:activeProject,messages,logs,updatedAt:new Date().toISOString()};
+      const i=xs.findIndex(x=>x.id===chat.id); if(i<0)return[chat,...xs];
+      const a=[...xs];a[i]={...a[i],...chat};return a;
+    }),400);
     return()=>clearTimeout(t);
   },[messages,logs,activeChat,project,activeProject]);
+
   useEffect(()=>{
     if(!activeProject)return;
-    const t=setTimeout(()=>{
-      setProjects(xs=>xs.map(p=>p.id===activeProject?{...p,name:project||"Dự án chưa đặt tên",description:prompt,vercel:preview,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),previewHtml,updatedAt:new Date().toISOString()}:p));
-    },700);
+    const t=setTimeout(()=>setProjects(xs=>xs.map(p=>p.id===activeProject?{...p,name:project||"Dự án chưa đặt tên",description:prompt,vercel:preview,previewHtml,previewType,platform,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),updatedAt:new Date().toISOString()}:p)),500);
     return()=>clearTimeout(t);
-  },[project,prompt,preview,messages,activeProject]);
-  useEffect(()=>{if(!activeProject&&projects[0])setActiveProject(projects[0].id)},[projects,activeProject]);
+  },[project,prompt,preview,previewHtml,previewType,platform,messages,activeProject]);
 
   const enabled=useMemo(()=>providers.filter(p=>p.free&&p.enabled&&p.key),[providers]);
 
   function update(id,patch){setProviders(ps=>ps.map(p=>p.id===id?{...p,...patch}:p))}
   function toggle(id){setProviders(ps=>ps.map(p=>p.id===id?{...p,enabled:!p.enabled}:p))}
   function clearKey(id){update(id,{key:"",enabled:false});setModels(ms=>({...ms,[id]:[]}));setNotice("Đã xoá API key khỏi trình duyệt.");}
-  function newProject(){const p={id:Date.now().toString(),name:"Dự án mới",description:"",blueprint:"",github:"",vercel:"",updatedAt:new Date().toISOString()};const chatId="chat-"+Date.now();setProjects(x=>[p,...x]);setActiveProject(p.id);setProject(p.name);setMessages([]);setLogs([]);setPreview("");setActiveChat(chatId);setChatSessions(x=>[{id:chatId,name:"Cuộc trò chuyện mới",projectId:p.id,messages:[],logs:[],updatedAt:new Date().toISOString()},...x]);setNotice("Đã tạo dự án mới.");}
+  function newProject(){
+    const id=Date.now().toString(),chatId="chat-"+Date.now();
+    const p={id,name:"Dự án mới",description:"",blueprint:"",github:"",vercel:"",previewHtml:"",updatedAt:new Date().toISOString()};
+    setProjects(x=>[p,...x]);setActiveProject(id);setProject(p.name);setPrompt("");setMessages([]);setLogs([]);setPreview("");setPreviewHtml("");setActiveChat(chatId);
+    setChatSessions(x=>[{id:chatId,name:"Cuộc trò chuyện mới",projectId:id,messages:[],logs:[],updatedAt:new Date().toISOString()},...x]);
+    setNotice("Đã tạo dự án mới.");
+  }
   function newChat(){
-    const chatId="chat-"+Date.now();
-    setMessages([]);setLogs([]);setActiveChat(chatId);
-    setChatSessions(x=>[{id:chatId,name:"Cuộc trò chuyện mới",projectId:activeProject,messages:[],logs:[],updatedAt:new Date().toISOString()},...x]);
+    const id="chat-"+Date.now();setMessages([]);setLogs([]);setActiveChat(id);
+    setChatSessions(x=>[{id,name:"Cuộc trò chuyện mới",projectId:activeProject,messages:[],logs:[],updatedAt:new Date().toISOString()},...x]);
     setNotice("Đã mở cuộc trò chuyện mới.");
   }
-  function openChat(chat){setActiveChat(chat.id);setMessages(chat.messages||[]);setLogs(chat.logs||[]);if(chat.projectId){setActiveProject(chat.projectId);const p=projects.find(x=>x.id===chat.projectId);if(p){setProject(p.name);setPreview(p.vercel||"");}}setNotice("Đã mở cuộc trò chuyện.");}
-  function deleteChat(id){setChatSessions(x=>x.filter(c=>c.id!==id));if(activeChat===id){setActiveChat("");setMessages([]);setLogs([]);}setNotice("Đã xóa đoạn chat.");}
-  function saveProject(){const p={id:activeProject||Date.now().toString(),name:project||"Dự án chưa đặt tên",description:prompt,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),github:"",vercel:preview,previewHtml,updatedAt:new Date().toISOString()};setProjects(xs=>{const i=xs.findIndex(x=>x.id===p.id);if(i<0)return[p,...xs];const a=[...xs];a[i]={...a[i],...p};return a});setActiveProject(p.id);setNotice("✓ Đã lưu dự án.");}
-  function openProject(p){setActiveProject(p.id);setProject(p.name);setPreview(p.vercel||"");setPreviewHtml(p.previewHtml||"");setPrompt(p.description||"");setMessages(p.blueprint?[{role:"assistant",content:p.blueprint}]:[]);setLogs([]);setNotice("Đã mở "+p.name+".");}
-  async function buildPreview(){
-    if(!prompt.trim()||busy)return;
-    if(!enabled.length){setNotice("Chưa có AI provider nào được bật và có key.");setTab("settings");return}
-    const user=prompt.trim();setBusy(true);setLogs(l=>[...l,"Build: tạo Live Preview..."]);
-    try{
-      const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"build",prompt:user,providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected})});
-      const data=await r.json();
-      if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
-      if(!r.ok)throw new Error(data.error||"Không tạo được preview");
-      setPreviewHtml(data.html);setPreview("");setMessages(m=>[...m,{role:"assistant",content:"Đã tạo Live Preview bằng "+data.provider+"."}]);setNotice("✓ Live Preview đã được tạo.");
-    }catch(e){setNotice("✕ "+e.message);setLogs(l=>[...l,"Build: "+e.message]);}
-    finally{setBusy(false)}
+  function openProject(p){
+    setActiveProject(p.id);setProject(p.name);setPreview(p.vercel||"");setPreviewHtml(p.previewHtml||"");setPreviewType(p.previewType||"web-live");setPlatform(p.platform||"web");setPrompt(p.description||"");
+    setMessages(p.blueprint?[{role:"assistant",content:p.blueprint}]:[]);setLogs([]);setNotice("Đã mở "+p.name+".");
+  }
+  function openChat(chat){
+    setActiveChat(chat.id);setMessages(chat.messages||[]);setLogs(chat.logs||[]);
+    if(chat.projectId){setActiveProject(chat.projectId);const p=projects.find(x=>x.id===chat.projectId);if(p){setProject(p.name);setPreview(p.vercel||"");setPreviewHtml(p.previewHtml||"");setPreviewType(p.previewType||"web-live");setPlatform(p.platform||"web");}}
+    setNotice("Đã mở cuộc trò chuyện.");
+  }
+  function saveProject(){
+    const id=activeProject||Date.now().toString();
+    const p={id,name:project||"Dự án chưa đặt tên",description:prompt,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),github:"",vercel:preview,previewHtml,previewType,platform,updatedAt:new Date().toISOString()};
+    setProjects(xs=>{const i=xs.findIndex(x=>x.id===id);if(i<0)return[p,...xs];const a=[...xs];a[i]={...a[i],...p};return a});setActiveProject(id);setNotice("✓ Đã lưu dự án.");
   }
   function deleteProject(id){
-    const p=projects.find(x=>x.id===id); if(!p)return;
-    if(!window.confirm("Xóa dự án "+p.name+"? Hành động này không thể hoàn tác."))return;
-    const next=projects.filter(x=>x.id!==id); setProjects(next);
-    const nextActive=next[0]?.id||"";
-    setActiveProject(nextActive);
-    if(next[0])openProject(next[0]);else{setProject("Untitled Project");setPrompt("");setMessages([]);setPreview("");}
+    const p=projects.find(x=>x.id===id);if(!p||!window.confirm("Xóa dự án "+p.name+"?"))return;
+    const next=projects.filter(x=>x.id!==id);setProjects(next);
+    if(next[0])openProject(next[0]);else{setActiveProject("");setProject("Untitled Project");setPrompt("");setMessages([]);setPreview("");setPreviewHtml("");}
     setNotice("Đã xóa dự án.");
   }
-  async function generateMedia(){
-    if(!mediaPrompt.trim()||mediaBusy)return;
-    setMediaBusy(true);
-    const item={id:Date.now().toString(),type:mediaType,prompt:mediaPrompt.trim(),status:"queued",createdAt:new Date().toISOString()};
-    setMediaHistory(x=>[item,...x]);
-    setNotice("Media Studio hiện đã sẵn sàng về giao diện và lịch sử; nguồn API FREE vĩnh viễn cho tạo ảnh/video chưa đủ điều kiện để tự động gọi.");
-    setMediaBusy(false);
+  function deleteChat(id){setChatSessions(x=>x.filter(c=>c.id!==id));if(activeChat===id){setActiveChat("");setMessages([]);setLogs([])}}
+
+  async function apiBuild(user,history){
+    const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({
+      action:"build",prompt:user,history,providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected
+    })});
+    const data=await r.json();
+    if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
+    if(!r.ok)throw new Error(data.error||"Không tạo được preview");
+    setPreviewHtml(data.html);setPreview("");setPreviewType(data.previewType||"web-live");setPlatform(data.platform||"web");
+    setMessages(m=>[...m,{role:"system",content:"✓ Đã build và đưa sản phẩm vào Live Preview bằng "+data.provider+" · "+(data.platform||"web").toUpperCase()}]);
+    setNotice("✓ Đã triển khai. Preview đã được cập nhật.");
+  }
+
+  async function run(){
+    if(!prompt.trim()||busy)return;
+    if(!enabled.length){setNotice("Chưa có AI FREE provider nào được bật và có key.");setTab("settings");return}
+    const user=prompt.trim();
+    const history=messages.slice(-12);
+    setPrompt("");setMessages(m=>[...m,{role:"user",content:user}]);setBusy(true);
+    setLogs(l=>[...l,"Factory: hiểu yêu cầu → chọn AI → build → preview"]);
+    try{
+      const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"chat",mode:"auto",prompt:user,history,providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected})});
+      const data=await r.json();if(data.logs?.length)setLogs(l=>[...l,...data.logs]);if(!r.ok)throw new Error(data.error||"AI request failed");
+      setMessages(m=>[...m,{role:"assistant",content:data.text||"Đã hiểu yêu cầu."}]);
+      await apiBuild(user,[...history,{role:"user",content:user},{role:"assistant",content:data.text||""}]);
+    }catch(e){
+      setMessages(m=>[...m,{role:"assistant",content:"Lỗi: "+e.message}]);setLogs(l=>[...l,"Factory: thất bại — "+e.message]);setNotice("✕ "+e.message);
+    }finally{setBusy(false)}
   }
 
   async function testProvider(p){
@@ -119,107 +136,81 @@ export default function Home(){
     setConnection(x=>({...x,[p.id]:{status:"testing",message:"Đang kiểm tra..."}}));
     try{
       const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"test",provider:p.id,key:p.key,model:p.model})});
-      const data=await r.json();
-      setConnection(x=>({...x,[p.id]:data.ok?{status:"connected",message:"Đã kết nối"}:{status:"error",message:data.error||"Kết nối thất bại"}}));
-      setNotice(data.ok?"✓ "+p.name+" kết nối OK":("✕ "+p.name+": "+(data.error||"Không kết nối được")));
+      const d=await r.json();setConnection(x=>({...x,[p.id]:d.ok?{status:"connected",message:"Đã kết nối"}:{status:"error",message:d.error||"Kết nối thất bại"}}));setNotice(d.ok?"✓ "+p.name+" kết nối OK":"✕ "+p.name+": "+(d.error||"Không kết nối được"));
     }catch(e){setNotice("✕ Lỗi mạng khi kiểm tra "+p.name)}
   }
-
   async function loadModels(p){
-    if(!p.key){setNotice("Nhập API key trước khi tải model.");return}
-    setLoadingModels(x=>({...x,[p.id]:true}));
-    setNotice("Đang tải danh sách model của "+p.name+"...");
-    try{
-      const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"models",provider:p.id,key:p.key})});
-      const data=await r.json();
-      if(!r.ok)throw new Error(data.error||"Không tải được model.");
-      setModels(x=>({...x,[p.id]:data.models||[]}));
-      setNotice("✓ "+p.name+": đã tải "+(data.models?.length||0)+" model.");
-    }catch(e){
-      setNotice("✕ "+p.name+": "+e.message);
-    }finally{
-      setLoadingModels(x=>({...x,[p.id]:false}));
-    }
+    if(!p.key){setNotice("Nhập API key trước.");return}setLoadingModels(x=>({...x,[p.id]:true}));
+    try{const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"models",provider:p.id,key:p.key})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Không tải được model");setModels(x=>({...x,[p.id]:d.models||[]}));setNotice("✓ Đã tải "+(d.models?.length||0)+" model.");}
+    catch(e){setNotice("✕ "+e.message)}finally{setLoadingModels(x=>({...x,[p.id]:false}))}
   }
-
-  async function run(){
-    if(!prompt.trim()||busy)return;
-    if(!enabled.length){setNotice("Chưa có AI provider nào được bật và có key.");setTab("settings");return}
-    const user=prompt.trim(); setPrompt(""); setMessages(m=>[...m,{role:"user",content:user}]); setBusy(true);
-    setLogs(l=>[...l,"Router: bắt đầu xử lý yêu cầu..."]);
-    try{
-      const payload={action:"chat",mode,prompt:user,history:messages.slice(-12),providers:enabled.map(p=>({id:p.id,key:p.key,model:p.model})),selected};
-      const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});
-      const data=await r.json();
-      if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
-      if(!r.ok) throw new Error(data.error||"AI request failed");
-      setMessages(m=>[...m,{role:"assistant",content:data.text||"Không có nội dung trả về."}]);
-    }catch(e){
-      setMessages(m=>[...m,{role:"assistant",content:"Lỗi: "+e.message}]);
-      setLogs(l=>[...l,"Router: thất bại — "+e.message]);
-    }finally{setBusy(false)}
+  async function generateMedia(){
+    if(!mediaPrompt.trim()||mediaBusy)return;setMediaBusy(true);
+    const item={id:Date.now().toString(),type:mediaType,prompt:mediaPrompt.trim(),status:"queued",createdAt:new Date().toISOString()};
+    setMediaHistory(x=>[item,...x]);setNotice("Media API FREE vĩnh viễn hiện chưa đủ điều kiện để gọi tự động; không dùng nguồn trả phí.");setMediaBusy(false);
   }
 
   return <div className="shell">
     <aside className="sidebar">
-      <div className="brand"><div className="logo">AI</div><div><b>AI Software Factory</b><span>Build • Review • Ship</span></div></div>
+      <div className="brand"><div className="logo">AI</div><div><b>AI Software Factory</b><span>Build • Preview • Ship</span></div></div>
       <div className="nav">
-        <button className={tab==="workspace"?"active":""} onClick={()=>setTab("workspace")}>⌘ Workspace</button><button className={tab==="ide"?"active":""} onClick={()=>setTab("ide")}>⌘ AI Code Studio</button>
-        <button className={tab==="media"?"active":""} onClick={()=>setTab("media")}>✦ AI Media Studio</button>
-        <div className="chat-mini"><div className="project-mini-head"><b>Đoạn chat</b><button onClick={newChat}>+</button></div>{chatSessions.slice(0,10).map(ch=><div className="project-row" key={ch.id}><button className={activeChat===ch.id?"project-item active":"project-item"} onClick={()=>openChat(ch)}>{ch.name}</button><button className="project-delete" title="Xóa đoạn chat" onClick={()=>deleteChat(ch.id)}>×</button></div>)}{!chatSessions.length&&<span>Chưa có đoạn chat</span>}</div>
-        <button className={tab==="settings"?"active":""} onClick={()=>setTab("settings")}>⚙ AI Providers</button><div className="project-mini"><div className="project-mini-head"><b>Projects</b><button onClick={newProject}>+</button></div>{projects.slice(0,8).map(p=><div className="project-row" key={p.id}><button className={activeProject===p.id?"project-item active":"project-item"} onClick={()=>openProject(p)}>{p.name}</button><button className="project-delete" title="Xóa dự án" onClick={()=>deleteProject(p.id)}>×</button></div>)}{!projects.length&&<span>Chưa có dự án</span>}</div>
+        <button className={tab==="workspace"?"active":""} onClick={()=>setTab("workspace")}>⌘ Factory</button>
+        <button className={tab==="media"?"active":""} onClick={()=>setTab("media")}>✦ Media Studio</button>
+        <button className={tab==="settings"?"active":""} onClick={()=>setTab("settings")}>⚙ AI Providers</button>
+        <div className="chat-mini"><div className="project-mini-head"><b>Đoạn chat</b><button onClick={newChat}>+</button></div>
+          {chatSessions.slice(0,10).map(ch=><div className="project-row" key={ch.id}><button className={activeChat===ch.id?"project-item active":"project-item"} onClick={()=>openChat(ch)}>{ch.name}</button><button className="project-delete" onClick={()=>deleteChat(ch.id)}>×</button></div>)}
+          {!chatSessions.length&&<span>Chưa có đoạn chat</span>}
+        </div>
+        <div className="project-mini"><div className="project-mini-head"><b>Projects</b><button onClick={newProject}>+</button></div>
+          {projects.slice(0,8).map(p=><div className="project-row" key={p.id}><button className={activeProject===p.id?"project-item active":"project-item"} onClick={()=>openProject(p)}>{p.name}</button><button className="project-delete" onClick={()=>deleteProject(p.id)}>×</button></div>)}
+          {!projects.length&&<span>Chưa có dự án</span>}
+        </div>
       </div>
-      <div className="side-foot">Keys are stored locally in this browser. Never commit API keys to GitHub.</div>
+      <div className="side-foot">FREE ONLY · API keys stay in this browser.</div>
     </aside>
+
     <main className="main">
       <header className="topbar"><div className="status"><span className="dot"/>{enabled.length} provider sẵn sàng</div><div className="row"><button className="btn" onClick={newChat}>+ Chat mới</button><button className="btn" onClick={()=>setTab("settings")}>Manage AI</button></div></header>
       <div className="content">
-        {tab==="ide"?<EngineeringWorkspace prompt={prompt} setPrompt={setPrompt} busy={busy} previewHtml={previewHtml} setPreviewHtml={setPreviewHtml} logs={logs} setLogs={setLogs}/>:tab==="workspace"?<section className="workspace">
-          <div className="hero"><div><div className="eyebrow">AI orchestration workspace</div><h1>Build your software with multiple AIs.</h1><p>Nhập yêu cầu. Router sẽ ưu tiên provider bạn chọn, rồi fallback sang provider khác khi gặp lỗi hoặc giới hạn.</p></div><div className="row"><button className="btn" onClick={newProject}>+ New project</button><button className="btn primary" onClick={saveProject}>Save project</button></div></div>
-          <div className="grid">
-            <div className="card chat">
-              <div className="row" style={{justifyContent:"space-between"}}><div><h2>Build conversation</h2><div className="muted">{activeProject?"Project saved locally":"Unsaved project"}</div></div><input value={project} onChange={e=>setProject(e.target.value)} style={{width:190,background:"#080d16",border:"1px solid #263047",color:"#eef2ff",padding:"8px 10px",borderRadius:7}}/></div>
-              <div className="messages">{messages.length?messages.map((m,i)=><div key={i} className={"msg "+(m.role==="user"?"user":"ai")}><b>{m.role==="user"?"You":"AI Router"}</b><div>{m.content}</div></div>):<div className="empty">Mô tả app/web bạn muốn xây ở ô bên dưới.<br/>Ví dụ: “Tạo dashboard quản lý đơn hàng có đăng nhập, tìm kiếm và biểu đồ.”</div>}</div>
-              <div className="composer"><div className="field" style={{marginTop:0}}><label>AI workflow</label><select value={mode} onChange={e=>setMode(e.target.value)}><option value="auto">Auto — AI tự phân tích</option><option value="plan">Plan — lập kế hoạch trước</option><option value="build">Build — triển khai</option><option value="review">Review — kiểm tra</option></select></div>
-                <div className="field" style={{marginTop:0}}><label>Router mode</label><select value={selected} onChange={e=>setSelected(e.target.value)}><option value="auto">Auto fallback</option>{enabled.map(p=><option key={p.id} value={p.id}>{p.name} — {p.model||"default"}</option>)}</select></div>
-                <div className="field"><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter")run()}} placeholder="Bạn muốn xây gì? Ctrl/Cmd + Enter để chạy..."/></div>
-                <div className="row" style={{justifyContent:"space-between"}}><span className="muted">{busy?"Router đang gọi AI...":"API keys chỉ được gửi khi bạn bấm Build."}</span><button className="btn primary" disabled={busy} onClick={run}>{busy?"Đang chạy…":"Chat / Analyze"}</button><button className="btn primary" disabled={busy} onClick={buildPreview}>{busy?"Đang build…":"Build → Live Preview"}</button></div>
+        {tab==="workspace"&&<section className="workspace">
+          <div className="hero"><div><div className="eyebrow">AI SOFTWARE FACTORY</div><h1>Một ô nói chuyện. Một ô thấy sản phẩm.</h1><p>Không cần AI Code Studio riêng. Mô tả → AI hiểu → tự build → tự đưa sản phẩm vào Preview.</p></div><div className="row"><button className="btn" onClick={newProject}>+ New project</button><button className="btn primary" onClick={saveProject}>Save</button></div></div>
+          {notice&&<div className="card factory-notice">{notice}</div>}
+          <div className="factory-grid">
+            <div className="card chat factory-chat">
+              <div className="factory-head"><div><h2>AI Factory</h2><div className="muted">Conversation + build agent hợp nhất</div></div><input value={project} onChange={e=>setProject(e.target.value)} /></div>
+              <div className="messages">{messages.length?messages.map((m,i)=><div key={i} className={"msg "+(m.role==="user"?"user":m.role==="system"?"system":"ai")}><b>{m.role==="user"?"Bạn":m.role==="system"?"Factory":"AI"} </b><div>{m.content}</div></div>):<div className="empty"><strong>Hãy nói app mày muốn làm.</strong><br/>Ví dụ: “Tạo app Android mở lên có nút bấm, bấm vào thì đọc số từ 1 đến 100 bằng tiếng Việt.”<br/><br/>Factory sẽ giữ platform, tự chọn công nghệ phù hợp và đưa kết quả sang Preview.</div>}</div>
+              <div className="composer">
+                <div className="field"><label>AI Router</label><select value={selected} onChange={e=>setSelected(e.target.value)}><option value="auto">Auto fallback — FREE</option>{enabled.map(p=><option key={p.id} value={p.id}>{p.name} · {p.model}</option>)}</select></div>
+                <div className="field"><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter")run()}} placeholder="Nói thẳng thứ mày muốn xây… ví dụ: tạo app Android đọc 1–100 bằng tiếng Việt."/></div>
+                <div className="factory-send"><span className="muted">{busy?"Factory đang xây và kiểm tra preview…":"Ctrl/Cmd + Enter để triển khai"}</span><button className="btn primary" disabled={busy} onClick={run}>{busy?"Đang build…":"Gửi & triển khai →"}</button></div>
               </div>
             </div>
-            <div className="card">
-              <h2>Live project</h2><div className="muted">Preview / generated output</div>
-              <div className="field"><label>Preview URL / Deploy URL</label><input value={preview} onChange={e=>setPreview(e.target.value)} placeholder="https://..." /></div>
-              {previewHtml?<div className="live-frame"><div className="live-frame-head"><b>LIVE PREVIEW</b><span>AI-generated</span></div><iframe title="Live Preview" srcDoc={previewHtml} sandbox="allow-scripts allow-forms" /></div>:preview?<div className="live-frame"><div className="live-frame-head"><b>DEPLOYED PREVIEW</b><a href={preview} target="_blank" rel="noreferrer">Mở ↗</a></div><iframe title="Deployed Preview" src={preview} /></div>:<div className="preview-empty">Chưa có Preview. Bấm Build → Live Preview để AI tạo giao diện chạy được ngay.</div>}
-              <div className="review"><div className="metric"><b>{enabled.length}</b><span>AI providers</span></div><div className="metric"><b>{messages.length}</b><span>Messages</span></div><div className="metric"><b>{logs.length}</b><span>Router logs</span></div></div>
-              <h2 style={{marginTop:22}}>Pipeline logs</h2><div className="logs">{logs.length?logs.slice(-12).map((x,i)=><div className="log" key={i}>{x}</div>):<div className="log">Router idle.</div>}</div>
+
+            <div className="card preview-card">
+              <div className="preview-head"><div><h2>Live Preview</h2><div className="muted">{previewType==="device-simulator"?"Device Simulator":"Live web artifact"} · {platform.toUpperCase()}</div></div>{previewHtml&&<span className="pill ok">● RUNNING</span>}</div>
+              {previewHtml?<div className={"live-frame "+(previewType==="device-simulator"?"device-preview":"")}><div className="live-frame-head"><b>{previewType==="device-simulator"?"ANDROID / DEVICE SIMULATOR":"LIVE APP"}</b><span>Interactive</span></div><iframe title="AI Factory Live Preview" srcDoc={previewHtml} sandbox="allow-scripts allow-forms allow-modals"/></div>:preview?<div className="live-frame"><div className="live-frame-head"><b>DEPLOYED</b><a href={preview} target="_blank" rel="noreferrer">Mở ↗</a></div><iframe title="Deployed Preview" src={preview}/></div>:<div className="preview-empty"><div><div className="preview-icon">◫</div><strong>Preview sẽ xuất hiện ở đây</strong><p>Chỉ cần nói app mày muốn làm. Factory sẽ tự build và render sản phẩm tại đây.</p></div></div>}
+              <div className="review"><div className="metric"><b>{enabled.length}</b><span>FREE AI</span></div><div className="metric"><b>{messages.filter(x=>x.role==="user").length}</b><span>Yêu cầu</span></div><div className="metric"><b>{logs.length}</b><span>Pipeline</span></div></div>
+              <div className="pipeline"><div className="pipeline-title">FACTORY PIPELINE</div>{["Understand","Build","Verify","Preview"].map((x,i)=><div className={"pipeline-step "+(busy&&i<3?"running":"")} key={x}><span>{i+1}</span>{x}</div>)}</div>
             </div>
           </div>
-        </section>:tab==="media"?<section className="settings">
-          <div className="hero"><div><div className="eyebrow">Creative workspace</div><h1>AI Media Studio</h1><p>Tạo ảnh và video bằng AI, lưu lịch sử theo từng dự án và giữ workflow chung với AI Software Factory.</p></div><button className="btn" onClick={()=>{setMediaPrompt("");setNotice("Đã tạo phiên media mới.")}}>+ New media</button></div>
-          {notice&&<div className="card" style={{marginBottom:14}}>{notice}</div>}
-          <div className="grid">
-            <div className="card">
-              <div className="row" style={{gap:8}}><button className={"btn "+(mediaType==="image"?"primary":"")} onClick={()=>setMediaType("image")}>▧ Tạo ảnh</button><button className={"btn "+(mediaType==="video"?"primary":"")} onClick={()=>setMediaType("video")}>▶ Tạo video</button></div>
-              <div className="field"><label>Mô tả</label><textarea value={mediaPrompt} onChange={e=>setMediaPrompt(e.target.value)} placeholder={mediaType==="image"?"Ví dụ: Phòng khách hiện đại, ánh sáng tự nhiên, ảnh kiến trúc chân thực...":"Ví dụ: Camera dolly chậm qua phòng khách, ánh sáng buổi chiều, cinematic..."}/></div>
-              <div className="field"><label>Ảnh tham chiếu (tuỳ chọn)</label><input type="file" accept="image/*,video/*"/></div>
-              <div className="row" style={{justifyContent:"space-between"}}><span className="muted">Chỉ sử dụng nguồn API FREE hợp lệ.</span><button className="btn primary" disabled={mediaBusy} onClick={generateMedia}>{mediaBusy?"Đang xử lý…":"Generate "+(mediaType==="image"?"Image":"Video")}</button></div>
-            </div>
-            <div className="card"><h2>Media history</h2><div className="muted">Tự động lưu trong trình duyệt.</div><div className="logs">{mediaHistory.length?mediaHistory.slice(0,12).map(x=><div className="log" key={x.id}><b>{x.type==="image"?"IMAGE":"VIDEO"}</b> · {x.prompt}<br/><span className="muted">{new Date(x.createdAt).toLocaleString("vi-VN")} · {x.status}</span></div>):<div className="log">Chưa có media.</div>}</div></div>
-          </div>
-        </section>:<section className="settings">
-          <div className="hero"><div><div className="eyebrow">Settings</div><h1>AI Providers</h1><p>Nhập key trực tiếp trong app. Key được lưu trong localStorage của trình duyệt hiện tại và không được ghi vào GitHub.</p></div><button className="btn" onClick={()=>setNotice("FREE ONLY: Gemini, Groq và OpenRouter. Không dùng API trả phí.")}>+ Custom provider</button></div>
-          {notice&&<div className="card" style={{marginBottom:14}}>{notice}</div>}
-          <div className="card"><h2>Provider pool</h2><div className="muted">FREE ONLY — Router chỉ dùng provider có free tier và tự chuyển khi nguồn bị giới hạn.</div>
-            <div className="providers">{providers.map(p=><div className="provider" key={p.id}>
-              <div className="provider-head"><div><div className="provider-name">{p.name} <span className="pill ok">FREE</span></div><span className="pill">{p.id}</span></div><button className={"switch "+(p.enabled?"on":"")} onClick={()=>toggle(p.id)} aria-label="toggle"/></div>
-              <div className="field"><label>Model</label><select value={p.model||""} onChange={e=>update(p.id,{model:e.target.value})}>
-                {models[p.id]?.length?<>{models[p.id].map(m=><option key={m.id} value={m.id}>{m.name}{m.id!==m.name?" — "+m.id:""}</option>)}</>:<option value={p.model||""}>{p.model||"Chưa tải model"}</option>}
-              </select></div>
-              {models[p.id]?.length>0&&<div className="muted" style={{marginTop:-7,marginBottom:10}}>Đã tải {models[p.id].length} model. Chọn trực tiếp từ danh sách.</div>}
-              <div className="field"><label>API key</label><input type="password" value={p.key||""} onChange={e=>update(p.id,{key:e.target.value})} placeholder={p.placeholder}/></div>
-              <div className="provider-actions"><button className="btn" onClick={()=>loadModels(p)} disabled={loadingModels[p.id]}>{loadingModels[p.id]?"Đang tải…":"↻ Tải models"}</button><button className="btn" onClick={()=>testProvider(p)}>Test connection</button><button className="btn" onClick={()=>clearKey(p.id)}>Clear key</button><a className="btn primary" href={p.keyUrl} target="_blank" rel="noopener noreferrer">Lấy API key ↗</a>{connection[p.id]&&<span className={"connection "+connection[p.id].status}>{connection[p.id].status==="connected"?"● Đã kết nối":connection[p.id].status==="testing"?"○ Đang kiểm tra":"× "+connection[p.id].message}</span>}</div>
-            </div>)}</div>
-          </div>
+          <div className="card logs-card"><div className="row" style={{justifyContent:"space-between"}}><h2>Factory logs</h2><span className="muted">Không dùng AI trả phí</span></div><div className="logs">{logs.length?logs.slice(-16).map((x,i)=><div className="log" key={i}>{x}</div>):<div className="log">Factory idle.</div>}</div></div>
+        </section>}
+
+        {tab==="media"&&<section className="settings">
+          <div className="hero"><div><div className="eyebrow">CREATIVE</div><h1>AI Media Studio</h1><p>Workflow media nằm trong cùng Factory. Chỉ gọi nguồn API khi đáp ứng đúng điều kiện FREE.</p></div></div>
+          {notice&&<div className="card factory-notice">{notice}</div>}
+          <div className="grid"><div className="card"><div className="row"><button className={"btn "+(mediaType==="image"?"primary":"")} onClick={()=>setMediaType("image")}>▧ Image</button><button className={"btn "+(mediaType==="video"?"primary":"")} onClick={()=>setMediaType("video")}>▶ Video</button></div><div className="field"><label>Mô tả</label><textarea value={mediaPrompt} onChange={e=>setMediaPrompt(e.target.value)} placeholder="Mô tả hình ảnh / video cần tạo…"/></div><div className="field"><label>Ảnh tham chiếu</label><input type="file" accept="image/*,video/*"/></div><button className="btn primary" disabled={mediaBusy} onClick={generateMedia}>Generate</button></div><div className="card"><h2>Media history</h2><div className="logs">{mediaHistory.length?mediaHistory.slice(0,12).map(x=><div className="log" key={x.id}><b>{x.type.toUpperCase()}</b> · {x.prompt}<br/><span className="muted">{new Date(x.createdAt).toLocaleString("vi-VN")} · {x.status}</span></div>):<div className="log">Chưa có media.</div>}</div></div></div>
+        </section>}
+
+        {tab==="settings"&&<section className="settings">
+          <div className="hero"><div><div className="eyebrow">FREE AI POOL</div><h1>AI Providers</h1><p>Chỉ Gemini, Groq và OpenRouter FREE. Không fallback sang API trả phí.</p></div></div>
+          {notice&&<div className="card factory-notice">{notice}</div>}
+          <div className="card"><h2>Provider pool</h2><div className="muted">Router chỉ gọi provider có key và được bật.</div><div className="providers">{providers.map(p=><div className="provider" key={p.id}>
+            <div className="provider-head"><div><div className="provider-name">{p.name} <span className="pill ok">FREE</span></div><span className="pill">{p.id}</span></div><button className={"switch "+(p.enabled?"on":"")} onClick={()=>toggle(p.id)}/></div>
+            <div className="field"><label>Model</label><select value={p.model||""} onChange={e=>update(p.id,{model:e.target.value})}>{models[p.id]?.length?models[p.id].map(m=><option key={m.id} value={m.id}>{m.name}</option>):<option value={p.model}>{p.model}</option>}</select></div>
+            <div className="field"><label>API key</label><input type="password" value={p.key||""} onChange={e=>update(p.id,{key:e.target.value})} placeholder={p.placeholder}/></div>
+            <div className="provider-actions"><button className="btn" onClick={()=>loadModels(p)} disabled={loadingModels[p.id]}>{loadingModels[p.id]?"Đang tải…":"↻ Models"}</button><button className="btn" onClick={()=>testProvider(p)}>Test</button><button className="btn" onClick={()=>clearKey(p.id)}>Clear</button><a className="btn primary" href={p.keyUrl} target="_blank" rel="noopener noreferrer">Lấy key ↗</a>{connection[p.id]&&<span className={"connection "+connection[p.id].status}>{connection[p.id].status==="connected"?"● OK":connection[p.id].status==="testing"?"○ ...":"× "+connection[p.id].message}</span>}</div>
+          </div>)}</div></div>
         </section>}
       </div>
     </main>
