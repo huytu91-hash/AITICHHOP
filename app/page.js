@@ -294,15 +294,15 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
   },[]);
 
   function renderAiText(text){
-    const raw=String(text||"").replace(/\\r/g,"");
+    const raw=String(text||"").replace(/\r/g,"");
     return raw.split("```").map((part,i)=>{
-      if(i%2===1) return <pre className="ai-code" key={i}><code>{part.replace(/^\\w+\\n/,"").replace(/\\n$/,"")}</code></pre>;
-      return <div className="ai-text" key={i}>{part.split("\\n").map((line,j)=>{
+      if(i%2===1) return <pre className="ai-code" key={i}><code>{part.replace(/^\w+\r?\n/,"").replace(/\r?\n$/,"")}</code></pre>;
+      return <div className="ai-text" key={i}>{part.split(/\n/).map((line,j)=>{
         const t=line.trim();
         if(!t)return <div className="ai-space" key={j}/>;
-        if(/^#{1,3}\\s/.test(t))return <h3 key={j}>{t.replace(/^#{1,3}\\s/,"")}</h3>;
-        if(/^[-*]\\s+/.test(t))return <div className="ai-bullet" key={j}>• <span>{t.replace(/^[-*]\\s+/,"")}</span></div>;
-        return <p key={j}>{t.split(/(\\*\\*[^*]+\\*\\*)/g).map((x,k)=>/^\\*\\*[^*]+\\*\\*$/.test(x)?<strong key={k}>{x.slice(2,-2)}</strong>:x)}</p>;
+        if(/^#{1,3}\s/.test(t))return <h3 key={j}>{t.replace(/^#{1,3}\s/,"")}</h3>;
+        if(/^[-*]\s+/.test(t))return <div className="ai-bullet" key={j}>• <span>{t.replace(/^[-*]\s+/,"")}</span></div>;
+        return <p key={j}>{t.split(/(\*\*[^*]+\*\*)/g).map((x,k)=>/^\*\*[^*]+\*\*$/.test(x)?<strong key={k}>{x.slice(2,-2)}</strong>:x)}</p>;
       })}</div>;
     });
   }
@@ -394,7 +394,7 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
       setPipeline(["done","done","done","done"]);
     }catch(e){
       setMessages(m=>[...m,{role:"assistant",content:"Lỗi build: "+e.message}]);setLogs(l=>[...l,"Factory: thất bại — "+e.message]);setNotice("✕ "+e.message);setPipeline(["done","error","idle","idle"]);
-    }finally{setBusy(false)}    }finally{setBusy(false)}
+    }finally{setBusy(false)}
   }
 
   async function testProvider(p){
