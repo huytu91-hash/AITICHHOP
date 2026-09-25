@@ -114,7 +114,6 @@ export async function POST(req){
     if(b.action==="models"){b.provider=normalizeProvider(b.provider);if(!FREE.has(b.provider))return NextResponse.json({error:"Chỉ cho phép FREE provider."},{status:403});return NextResponse.json({ok:true,models:await models(b.provider,b.key)})}
     if(b.action==="build"){
       const list=(b.providers||[]).filter(x=>x?.key&&FREE.has(x.id));
-      if(!list.length)return NextResponse.json({error:"Chưa có FREE provider khả dụng."},{status:400});
       const ordered=b.selected&&b.selected!=="auto"?[...list.filter(x=>x.id===b.selected),...list.filter(x=>x.id!==b.selected)]:list;
       const contextText=conversationInstruction(b.history,b.prompt);
       const allContext=(String(b.prompt||"")+"\\n"+String(b.history||[])).toLowerCase();
