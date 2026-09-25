@@ -132,8 +132,46 @@ export async function POST(req){
         :platform==="ios"
         ?"TARGET IS IOS. Preserve iOS as the product target; the browser preview is only a live simulator."
         :"TARGET IS WEB. Build the web product directly.";
-      const existing=b.existingHtml?String(b.existingHtml):""; const editNote=existing?"\n\nEXISTING PRODUCT: Modify the current Live Preview in place. Preserve its features and platform. Do not start a new app. Return the complete updated HTML.\n\nCURRENT HTML:\n"+existing:"\n\nNO EXISTING PRODUCT: Build from scratch.";\n       const buildPrompt=languageInstruction(b.prompt)+"\n\n"+contextText+"\n\n"+targetNote+editNote+"\n\nYou are the product implementation engine inside an AI Software Factory. The user expects an actual working preview, not a tutorial or a code dump. Build a complete self-contained interactive product preview. Return ONLY one complete HTML document starting with <!doctype html> and ending with </html>. Use inline CSS and vanilla JavaScript only. No markdown fences, no explanations, no external paid services. If the target is Android or iOS, make a convincing phone simulator frame with native-looking controls and implement the requested interaction using browser-safe APIs such as SpeechSynthesis when appropriate. The preview must never be blank. Include useful demo data/state and working buttons. IMPORTANT: do not load external scripts, styles, fonts, images, modules, CDN assets, network APIs, or parent-frame resources. Everything required for the preview must be inline and self-contained. Do not use window.parent, top, opener, import(), fetch() to external services, or browser APIs that require permissions. Keep JavaScript defensive: check elements before use, avoid duplicate IDs, and initialize only after DOMContentLoaded.\n\nUSER REQUEST:\n"+b.prompt;
-      const logs=[]; let last="";
+      const existing=b.existingHtml?String(b.existingHtml):""; const editNote=existing?"\n\nEXISTING PRODUCT: Modify the current Live Preview in place. Preserve its features and platform. Do not start a new app. Return the complete updated HTML.\n\nCURRENT HTML:\n"+existing:"\n\nNO EXISTING PRODUCT: Build from scratch.";\n       const buildPrompt=languageInstruction(b.prompt)+"\n\n"+contextText+"\n\n"+targetNote+editNote+"\n\n"+
+"You are the SENIOR AI PRODUCT BUILDER inside an AI Software Factory. Do NOT produce a toy demo unless the user explicitly asks for a tiny demo. Think like a product designer, UX designer, frontend engineer and QA engineer working together. Before writing the HTML, internally create a product blueprint and use it to implement the product. Do not output the blueprint separately; output only the final HTML.\n\n"+
+"PRODUCT QUALITY BAR:\n"+
+"- Build a believable finished product, not a single-card mockup.\n"+
+"- For a normal app, create a coherent multi-screen or multi-section experience with navigation, hierarchy, realistic demo data and meaningful interactions.\n"+
+"- For a game, create a real gameplay loop with start state, active state, feedback, score/progress, success/failure state, restart/next actions and enough content to play multiple rounds.\n"+
+"- For a dashboard/business app, include a polished overview, useful cards/tables/lists, filters or search when relevant, actions, empty/loading/error states and responsive layouts.\n"+
+"- For a utility app, make the primary workflow immediately usable and include validation, result states, reset/edit actions and helpful feedback.\n"+
+"- Use a consistent design system: typography scale, spacing, surfaces, borders, radii, buttons, badges, icons made with inline SVG/CSS when useful, focus/hover/pressed states and responsive breakpoints.\n"+
+"- Include polished micro-interactions and transitions where they improve usability. Avoid excessive animation.\n"+
+"- Design mobile-first when the target is mobile; make touch targets large and comfortable.\n"+
+"- Never use lorem ipsum or meaningless placeholder buttons. Use realistic Vietnamese content when the user speaks Vietnamese.\n"+
+"- Include navigation/back/close actions where screens or overlays exist. Every visible primary action must actually do something.\n"+
+"- Handle loading, empty, success, error and invalid-input states where applicable.\n"+
+"- Persist useful local state with localStorage when it makes sense, but gracefully recover if storage is unavailable.\n"+
+"- Use accessible labels, semantic controls, keyboard support where appropriate, and visible focus states.\n"+
+"- The first screen must immediately communicate what the product does and what the user should do next.\n"+
+"- If the request is underspecified, make sensible product decisions instead of shrinking the app into a generic demo.\n\n"+
+"VISUAL QUALITY BAR:\n"+
+"- Aim for the visual density and polish of a modern production app: strong header/navigation, intentional spacing, layered surfaces, clear primary CTA, useful secondary actions, realistic content and responsive composition.\n"+
+"- Do not make every section look like the same generic rounded card. Mix headers, lists, stats, controls, tabs, panels, sheets and content areas when appropriate.\n"+
+"- Avoid giant empty spaces, tiny text, excessive gradients, default browser controls and obviously AI-generated placeholder layouts.\n\n"+
+"IMPLEMENTATION CONSTRAINTS:\n"+
+"- Return ONLY one complete HTML document starting with <!doctype html> and ending with </html>. No markdown fences and no explanation.\n"+
+"- Use inline CSS and vanilla JavaScript only. No React, modules or build tools inside the preview.\n"+
+"- No external scripts, styles, fonts, images, modules, CDN assets, network APIs, fetch calls to external services, parent-frame resources, window.parent, top, opener or import().\n"+
+"- Everything required must be self-contained and work immediately inside the sandboxed Live Preview.\n"+
+"- Use inline SVG/CSS shapes or emoji instead of remote images when visuals are needed.\n"+
+"- Keep JavaScript defensive: initialize after DOMContentLoaded, check elements before use, avoid duplicate IDs, use event delegation or stable handlers, and catch recoverable storage/speech errors.\n"+
+"- Do not request browser permissions. SpeechSynthesis is allowed when appropriate.\n"+
+"- Preserve the existing product's platform, core features and useful existing UI when CURRENT HTML is supplied. Modify it in place instead of restarting from a blank template.\n"+
+"- The preview must never be blank even if an optional feature fails.\n\n"+
+"SELF-QA BEFORE RETURNING:\n"+
+"- Mentally test the primary flow from first screen to completion.\n"+
+"- Verify every major button has a handler and every navigation target exists.\n"+
+"- Verify there are no obvious null-element errors, duplicate IDs or broken selectors.\n"+
+"- Verify responsive behavior for narrow mobile width and desktop width.\n"+
+"- Verify the initial state is useful and visually complete.\n"+
+"- If a feature cannot be fully implemented without an external service, simulate it locally with realistic state and clearly keep it functional rather than leaving a dead button.\n\n"+
+"USER REQUEST:\n"+b.prompt;\n      const logs=[]; let last="";
       for(const p of ordered){logs.push("FREE Build Router → "+p.id+" / "+(p.model||"default"));try{
         const result=await call({...p,prompt:buildPrompt});
         const text=result.text;
