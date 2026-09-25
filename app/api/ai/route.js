@@ -94,6 +94,19 @@ async function call(p){
   const text=c.parse(d); if(!text) throw new Error("Provider trả về rỗng."); return text;
 }
 
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+function localPreview(prompt,platform,existing){
+  const p=String(prompt||"").toLowerCase();
+  const game=/game|trò chơi|chơi vui|casual|tap|bắt bóng|quiz|puzzle/.test(p);
+  const title=game?"AI Mini Game":"AI App Preview";
+  const target=platform==="ios"?"iPhone Simulator":platform==="android"?"Android Simulator":"Web Runtime";
+  const old=existing?"<div class=\"note\">Đây là bản chỉnh sửa từ sản phẩm hiện tại.</div>":"";
+  return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>"+escapeHtml(title)+"</title><style>"+
+  "*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:linear-gradient(145deg,#0b1020,#15102a);color:#fff;min-height:100vh;display:grid;place-items:center}.phone{width:min(390px,94vw);min-height:680px;border:10px solid #171923;border-radius:38px;background:#0d1220;box-shadow:0 25px 80px #0008;overflow:hidden}.bar{height:34px;background:#090b12;display:flex;align-items:center;justify-content:center;font-size:11px;color:#8f9bb2}.app{padding:26px 20px}.tag{display:inline-block;padding:6px 9px;border-radius:99px;background:#2a2144;color:#d9c7ff;font-size:11px}.title{font-size:32px;line-height:1.05;margin:18px 0 10px}.sub{color:#96a2b8;line-height:1.5}.card{margin-top:24px;padding:20px;border:1px solid #29344b;border-radius:20px;background:#121a2b}.score{font-size:44px;font-weight:800;margin:8px 0 16px}button{width:100%;border:0;border-radius:14px;padding:14px 16px;background:linear-gradient(135deg,#8b5cf6,#d946ef);color:#fff;font-weight:800;cursor:pointer;margin-top:10px}button.secondary{background:#202a3d}.note{font-size:11px;color:#7f8ba1;margin-top:12px}</style></head><body><main class=\"phone\"><div class=\"bar\">"+escapeHtml(target)+"</div><section class=\"app\"><span class=\"tag\">FREE LOCAL RUNTIME</span><h1 class=\"title\">"+escapeHtml(title)+"</h1><p class=\"sub\">"+escapeHtml(prompt||"Ứng dụng được tạo trong AI Software Factory.")+"</p>"+old+"<div class=\"card\"><div>Điểm</div><div id=\"score\" class=\"score\">0</div><button id=\"play\">"+(game?"CHƠI NGAY":"BẮT ĐẦU")+"</button><button id=\"reset\" class=\"secondary\">Đặt lại</button></div><p class=\"note\">Preview local fallback: không dùng API trả phí. Khi AI FREE hoạt động, Factory sẽ thay bằng artifact do AI tạo.</p></section></main><script>let s=0;const score=document.getElementById('score');document.getElementById('play').onclick=()=>{s+=1;score.textContent=s};document.getElementById('reset').onclick=()=>{s=0;score.textContent=s};</script></body></html>";
+}
 export async function POST(req){
   try{
     const b=await req.json();
@@ -122,7 +135,7 @@ export async function POST(req){
         logs.push("✓ "+p.id+" tạo preview OK");
         return NextResponse.json({ok:true,html,provider:p.id,platform,previewType:platform==="web"?"web-live":"device-simulator",logs});
       }catch(e){last=e.message;logs.push((transient(e.status)?"↪ ":"✕ ")+p.id+": "+e.message)}}
-      return NextResponse.json({error:"Không tạo được preview bằng nguồn FREE. Không chuyển sang nguồn trả phí.",logs,lastError:last},{status:502});
+      logs.push("⚙ FREE providers unavailable → dùng Local Runtime fallback để Preview không bị trắng");\n      const html=localPreview(b.prompt,platform,existing);\n      return NextResponse.json({ok:true,html,provider:"local-runtime",platform,previewType:platform==="web"?"web-live":"device-simulator",fallback:true,logs,lastError:last},{status:200});
     }
     if(b.action==="test"){
       const provider=normalizeProvider(b.provider);
