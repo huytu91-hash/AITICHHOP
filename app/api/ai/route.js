@@ -27,6 +27,46 @@ const PROVIDERS = {
   }
 };
 
+async function fetchModels(provider,key){
+  let url, headers;
+  if(provider==="openai"){
+    url="https://api.openai.com/v1/models";
+    headers={Authorization:"Bearer "+key};
+  }else if(provider==="anthropic"){
+    url="https://api.anthropic.com/v1/models?limit=1000";
+    headers={"x-api-key":key,"anthropic-version":"2023-06-01"};
+  }else if(provider==="google"){
+    url="https://generativelanguage.googleapis.com/v1beta/models?key="+encodeURIComponent(key)+"&pageSize=1000";
+    headers={};
+  }else if(provider==="openrouter"){
+    url="https://openrouter.ai/api/v1/models";
+    headers={Authorization:"Bearer "+key};
+  }else{
+    throw new Error("Provider "+provider+" chưa được hỗ trợ.");
+  }
+
+  const res=await fetch(url,{headers});
+  const raw=await res.text();
+  let data; try{data=JSON.parse(raw)}catch{data={error:{message:raw}}}
+  if(!res.ok){
+    const msg=data?.error?.message||data?.message||("HTTP "+res.status);
+    const err=new Error(msg); err.status=res.status; throw err;
+  }
+
+  let models=[];
+  if(provider==="openai"){
+    models=(data.data||[]).map(x=>({id:x.id,name:x.id,description:x.owned_by?("Owned by "+x.owned_by):""}));
+  }else if(provider==="anthropic"){
+    models=(data.data||[]).map(x=>({id:x.id,name:x.display_name||x.id,description:x.description||""}));
+  }else if(provider==="google"){
+    models=(data.models||[]).map(x=>({id:(x.baseModelId||x.name||"").replace(/^models\//,""),name:x.displayName||x.baseModelId||x.name,description:x.description||"",inputTokenLimit:x.inputTokenLimit}));
+  }else if(provider==="openrouter"){
+    models=(data.data||[]).map(x=>({id:x.id,name:x.name||x.id,description:x.description||"",contextLength:x.context_length}));
+  }
+
+  return models.filter(x=>x.id).sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+}
+
 async function callProvider(p){
   const cfg=PROVIDERS[p.id];
   if(!cfg) throw new Error("Provider "+p.id+" chưa được hỗ trợ.");
@@ -46,10 +86,18 @@ async function callProvider(p){
 export async function POST(req){
   try{
     const body=await req.json();
+
+    if(body.action==="models"){
+      if(!body.provider||!body.key)return NextResponse.json({error:"Provider và API key là bắt buộc."},{status:400});
+      const models=await fetchModels(body.provider,body.key);
+      return NextResponse.json({ok:true,models});
+    }
+
     if(body.action==="test"){
       await callProvider({...body,prompt:"Reply with exactly: CONNECTION_OK"});
       return NextResponse.json({ok:true});
     }
+
     const list=(body.providers||[]).filter(x=>x?.key&&x?.id);
     if(!list.length)return NextResponse.json({error:"No provider configured."},{status:400});
     const ordered=body.selected&&body.selected!=="auto"
