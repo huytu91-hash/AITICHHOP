@@ -181,7 +181,8 @@ export async function POST(req){
         return NextResponse.json({ok:true,html,provider:p.id,platform,previewType:platform==="web"?"web-live":"device-simulator",logs,quota:result.quota||null});
       }catch(e){last=e.message;logs.push((transient(e.status)?"↪ ":"✕ ")+p.id+": "+e.message)}}
       logs.push("⚙ FREE providers unavailable → dùng Local Runtime fallback để Preview không bị trắng");
-      const html=localPreview(b.prompt,platform,existing);\n      return NextResponse.json({ok:true,html,provider:"local-runtime",platform,previewType:platform==="web"?"web-live":"device-simulator",fallback:true,logs,lastError:last},{status:200});
+      const html=localPreview(b.prompt,platform,existing);
+      return NextResponse.json({ok:true,html,provider:"local-runtime",platform,previewType:platform==="web"?"web-live":"device-simulator",fallback:true,logs,lastError:last},{status:200});
     }
     if(b.action==="test"){
       const provider=normalizeProvider(b.provider);
