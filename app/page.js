@@ -37,6 +37,8 @@ export default function Home(){
   const [mode,setMode]=useState("auto");
   const [projects,setProjects]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.projects")||"[]")}catch{return []}});
   const [activeProject,setActiveProject]=useState("");
+  const [chatSessions,setChatSessions]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.chats")||"[]")}catch{return []}});
+  const [activeChat,setActiveChat]=useState("");
   const [mediaType,setMediaType]=useState("image");
   const [mediaPrompt,setMediaPrompt]=useState("");
   const [mediaHistory,setMediaHistory]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.media")||"[]")}catch{return []}});
@@ -45,6 +47,15 @@ export default function Home(){
   useEffect(()=>localStorage.setItem("asf.providers",JSON.stringify(providers)),[providers]);
   useEffect(()=>localStorage.setItem("asf.projects",JSON.stringify(projects)),[projects]);
   useEffect(()=>localStorage.setItem("asf.media",JSON.stringify(mediaHistory)),[mediaHistory]);
+  useEffect(()=>localStorage.setItem("asf.chats",JSON.stringify(chatSessions)),[chatSessions]);
+  useEffect(()=>{
+    if(!activeChat||!messages.length)return;
+    const t=setTimeout(()=>{
+      const chat={id:activeChat,name:project||"Cuộc trò chuyện mới",projectId:activeProject,messages,logs,updatedAt:new Date().toISOString()};
+      setChatSessions(xs=>{const i=xs.findIndex(x=>x.id===chat.id);if(i<0)return[chat,...xs];const a=[...xs];a[i]={...a[i],...chat};return a});
+    },500);
+    return()=>clearTimeout(t);
+  },[messages,logs,activeChat,project,activeProject]);
   useEffect(()=>{
     if(!activeProject)return;
     const t=setTimeout(()=>{
@@ -59,7 +70,15 @@ export default function Home(){
   function update(id,patch){setProviders(ps=>ps.map(p=>p.id===id?{...p,...patch}:p))}
   function toggle(id){setProviders(ps=>ps.map(p=>p.id===id?{...p,enabled:!p.enabled}:p))}
   function clearKey(id){update(id,{key:"",enabled:false});setModels(ms=>({...ms,[id]:[]}));setNotice("Đã xoá API key khỏi trình duyệt.");}
-  function newProject(){const p={id:Date.now().toString(),name:"Dự án mới",description:"",blueprint:"",github:"",vercel:"",updatedAt:new Date().toISOString()};setProjects(x=>[p,...x]);setActiveProject(p.id);setProject(p.name);setMessages([]);setLogs([]);setPreview("");setNotice("Đã tạo dự án mới.");}
+  function newProject(){const p={id:Date.now().toString(),name:"Dự án mới",description:"",blueprint:"",github:"",vercel:"",updatedAt:new Date().toISOString()};const chatId="chat-"+Date.now();setProjects(x=>[p,...x]);setActiveProject(p.id);setProject(p.name);setMessages([]);setLogs([]);setPreview("");setActiveChat(chatId);setChatSessions(x=>[{id:chatId,name:"Cuộc trò chuyện mới",projectId:p.id,messages:[],logs:[],updatedAt:new Date().toISOString()},...x]);setNotice("Đã tạo dự án mới.");}
+  function newChat(){
+    const chatId="chat-"+Date.now();
+    setMessages([]);setLogs([]);setActiveChat(chatId);
+    setChatSessions(x=>[{id:chatId,name:"Cuộc trò chuyện mới",projectId:activeProject,messages:[],logs:[],updatedAt:new Date().toISOString()},...x]);
+    setNotice("Đã mở cuộc trò chuyện mới.");
+  }
+  function openChat(chat){setActiveChat(chat.id);setMessages(chat.messages||[]);setLogs(chat.logs||[]);if(chat.projectId){setActiveProject(chat.projectId);const p=projects.find(x=>x.id===chat.projectId);if(p){setProject(p.name);setPreview(p.vercel||"");}}setNotice("Đã mở cuộc trò chuyện.");}
+  function deleteChat(id){setChatSessions(x=>x.filter(c=>c.id!==id));if(activeChat===id){setActiveChat("");setMessages([]);setLogs([]);}setNotice("Đã xóa đoạn chat.");}
   function saveProject(){const p={id:activeProject||Date.now().toString(),name:project||"Dự án chưa đặt tên",description:prompt,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),github:"",vercel:preview,updatedAt:new Date().toISOString()};setProjects(xs=>{const i=xs.findIndex(x=>x.id===p.id);if(i<0)return[p,...xs];const a=[...xs];a[i]={...a[i],...p};return a});setActiveProject(p.id);setNotice("✓ Đã lưu dự án.");}
   function openProject(p){setActiveProject(p.id);setProject(p.name);setPreview(p.vercel||"");setPrompt(p.description||"");setMessages(p.blueprint?[{role:"assistant",content:p.blueprint}]:[]);setLogs([]);setNotice("Đã mở "+p.name+".");}
   function deleteProject(id){
@@ -132,12 +151,13 @@ export default function Home(){
       <div className="nav">
         <button className={tab==="workspace"?"active":""} onClick={()=>setTab("workspace")}>⌘ Workspace</button>
         <button className={tab==="media"?"active":""} onClick={()=>setTab("media")}>✦ AI Media Studio</button>
+        <div className="chat-mini"><div className="project-mini-head"><b>Đoạn chat</b><button onClick={newChat}>+</button></div>{chatSessions.slice(0,10).map(ch=><div className="project-row" key={ch.id}><button className={activeChat===ch.id?"project-item active":"project-item"} onClick={()=>openChat(ch)}>{ch.name}</button><button className="project-delete" title="Xóa đoạn chat" onClick={()=>deleteChat(ch.id)}>×</button></div>)}{!chatSessions.length&&<span>Chưa có đoạn chat</span>}</div>
         <button className={tab==="settings"?"active":""} onClick={()=>setTab("settings")}>⚙ AI Providers</button><div className="project-mini"><div className="project-mini-head"><b>Projects</b><button onClick={newProject}>+</button></div>{projects.slice(0,8).map(p=><div className="project-row" key={p.id}><button className={activeProject===p.id?"project-item active":"project-item"} onClick={()=>openProject(p)}>{p.name}</button><button className="project-delete" title="Xóa dự án" onClick={()=>deleteProject(p.id)}>×</button></div>)}{!projects.length&&<span>Chưa có dự án</span>}</div>
       </div>
       <div className="side-foot">Keys are stored locally in this browser. Never commit API keys to GitHub.</div>
     </aside>
     <main className="main">
-      <header className="topbar"><div className="status"><span className="dot"/>{enabled.length} provider sẵn sàng</div><div className="row"><button className="btn" onClick={()=>setTab("settings")}>Manage AI</button></div></header>
+      <header className="topbar"><div className="status"><span className="dot"/>{enabled.length} provider sẵn sàng</div><div className="row"><button className="btn" onClick={newChat}>+ Chat mới</button><button className="btn" onClick={()=>setTab("settings")}>Manage AI</button></div></header>
       <div className="content">
         {tab==="workspace"?<section className="workspace">
           <div className="hero"><div><div className="eyebrow">AI orchestration workspace</div><h1>Build your software with multiple AIs.</h1><p>Nhập yêu cầu. Router sẽ ưu tiên provider bạn chọn, rồi fallback sang provider khác khi gặp lỗi hoặc giới hạn.</p></div><div className="row"><button className="btn" onClick={newProject}>+ New project</button><button className="btn primary" onClick={saveProject}>Save project</button></div></div>
