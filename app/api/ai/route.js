@@ -103,14 +103,24 @@ export async function POST(req){
       const list=(b.providers||[]).filter(x=>x?.key&&FREE.has(x.id));
       if(!list.length)return NextResponse.json({error:"Chưa có FREE provider khả dụng."},{status:400});
       const ordered=b.selected&&b.selected!=="auto"?[...list.filter(x=>x.id===b.selected),...list.filter(x=>x.id!==b.selected)]:list;
-      const buildPrompt=languageInstruction(b.prompt)+"\n\nYou are the UI implementation engine. Build a complete self-contained web app preview from the user request. Return ONLY one complete HTML document starting with <!doctype html> and ending with </html>. Use inline CSS and vanilla JavaScript only. No markdown fences, no explanations, no external paid services. Make the interface polished, responsive, functional with demo/local data where backend APIs are not available.\n\nUSER REQUEST:\n"+b.prompt;
+      const contextText=conversationInstruction(b.history,b.prompt);
+      const allContext=(String(b.prompt||"")+"\\n"+String(b.history||[])).toLowerCase();
+      const platformAndroid=/\\bandroi(?:d)?\\b|android\\s*(phone|điện thoại|app)?/.test(allContext);
+      const platformIOS=/\\b(ios|iphone|ipad)\\b/.test(allContext);
+      const platform=platformAndroid?"android":platformIOS?"ios":"web";
+      const targetNote=platform==="android"
+        ?"TARGET IS ANDROID. Do NOT switch to Web as the product target. Create a polished Android-style simulator preview of the requested app so it can be interacted with immediately in the browser. Preserve Android as the target; the browser preview is only a live simulator."
+        :platform==="ios"
+        ?"TARGET IS IOS. Preserve iOS as the product target; the browser preview is only a live simulator."
+        :"TARGET IS WEB. Build the web product directly.";
+      const buildPrompt=languageInstruction(b.prompt)+"\n\n"+contextText+"\n\n"+targetNote+"\n\nYou are the product implementation engine inside an AI Software Factory. The user expects an actual working preview, not a tutorial or a code dump. Build a complete self-contained interactive product preview. Return ONLY one complete HTML document starting with <!doctype html> and ending with </html>. Use inline CSS and vanilla JavaScript only. No markdown fences, no explanations, no external paid services. If the target is Android or iOS, make a convincing phone simulator frame with native-looking controls and implement the requested interaction using browser-safe APIs such as SpeechSynthesis when appropriate. The preview must never be blank. Include useful demo data/state and working buttons.\n\nUSER REQUEST:\n"+b.prompt;
       const logs=[]; let last="";
       for(const p of ordered){logs.push("FREE Build Router → "+p.id+" / "+(p.model||"default"));try{
         const text=await call({...p,prompt:buildPrompt});
         const html=text.replace(/^\s*```(?:html)?\s*/i,"").replace(/\s*```\s*$/,"").trim();
         if(!/^<!doctype html>/i.test(html)||!/<\/html>\s*$/i.test(html))throw new Error("AI không trả về HTML preview hợp lệ.");
         logs.push("✓ "+p.id+" tạo preview OK");
-        return NextResponse.json({ok:true,html,provider:p.id,logs});
+        return NextResponse.json({ok:true,html,provider:p.id,platform,previewType:platform==="web"?"web-live":"device-simulator",logs});
       }catch(e){last=e.message;logs.push((transient(e.status)?"↪ ":"✕ ")+p.id+": "+e.message)}}
       return NextResponse.json({error:"Không tạo được preview bằng nguồn FREE. Không chuyển sang nguồn trả phí.",logs,lastError:last},{status:502});
     }
