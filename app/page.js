@@ -118,7 +118,7 @@ Mục tiêu: game giáo dục, thao tác đơn giản cho trẻ 5 tuổi.
       const data=await r.json();
       if(data.logs?.length)setLogs(l=>[...l,...data.logs]);
       const plan=data.text||fallback;
-      const planText="KỊCH BẢN GAME — CHỜ DUYỆT\\n\\n"+plan+"\\n\\n---\\nSau khi mày đồng ý, Factory mới bắt đầu Build.";
+      const planText="KỊCH BẢN GAME — CHỜ DUYỆT\n\n"+plan+"\n\n---\nSau khi mày đồng ý, Factory mới bắt đầu Build.";
       setMessages(m=>[...m,{role:"assistant",content:planText}]);
       setApproval({prompt:user,plan:planText});
       setNotice("✓ Đã lên kịch bản. Chưa build — chờ mày đồng ý.");
