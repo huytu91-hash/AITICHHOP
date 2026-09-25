@@ -32,6 +32,8 @@ export default function Home(){
   const [project,setProject]=useState("Untitled Project");
   const [preview,setPreview]=useState("");
   const [notice,setNotice]=useState("");
+  const [models,setModels]=useState({});
+  const [loadingModels,setLoadingModels]=useState({});
 
   useEffect(()=>localStorage.setItem("asf.providers",JSON.stringify(providers)),[providers]);
 
@@ -39,7 +41,7 @@ export default function Home(){
 
   function update(id,patch){setProviders(ps=>ps.map(p=>p.id===id?{...p,...patch}:p))}
   function toggle(id){setProviders(ps=>ps.map(p=>p.id===id?{...p,enabled:!p.enabled}:p))}
-  function clearKey(id){update(id,{key:"",enabled:false});setNotice("Đã xoá API key khỏi trình duyệt.");}
+  function clearKey(id){update(id,{key:"",enabled:false});setModels(ms=>({...ms,[id]:[]}));setNotice("Đã xoá API key khỏi trình duyệt.");}
 
   async function testProvider(p){
     if(!p.key){setNotice("Nhập API key trước.");return}
@@ -49,6 +51,23 @@ export default function Home(){
       const data=await r.json();
       setNotice(data.ok?"✓ "+p.name+" kết nối OK":("✕ "+p.name+": "+(data.error||"Không kết nối được")));
     }catch(e){setNotice("✕ Lỗi mạng khi kiểm tra "+p.name)}
+  }
+
+  async function loadModels(p){
+    if(!p.key){setNotice("Nhập API key trước khi tải model.");return}
+    setLoadingModels(x=>({...x,[p.id]:true}));
+    setNotice("Đang tải danh sách model của "+p.name+"...");
+    try{
+      const r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"models",provider:p.id,key:p.key})});
+      const data=await r.json();
+      if(!r.ok)throw new Error(data.error||"Không tải được model.");
+      setModels(x=>({...x,[p.id]:data.models||[]}));
+      setNotice("✓ "+p.name+": đã tải "+(data.models?.length||0)+" model.");
+    }catch(e){
+      setNotice("✕ "+p.name+": "+e.message);
+    }finally{
+      setLoadingModels(x=>({...x,[p.id]:false}));
+    }
   }
 
   async function run(){
@@ -106,9 +125,12 @@ export default function Home(){
           <div className="card"><h2>Provider pool</h2><div className="muted">Router chỉ dùng provider đang bật và có key.</div>
             <div className="providers">{providers.map(p=><div className="provider" key={p.id}>
               <div className="provider-head"><div><div className="provider-name">{p.name}</div><span className="pill">{p.id}</span></div><button className={"switch "+(p.enabled?"on":"")} onClick={()=>toggle(p.id)} aria-label="toggle"/></div>
-              <div className="field"><label>Model</label><input value={p.model||""} onChange={e=>update(p.id,{model:e.target.value})} placeholder="model name"/></div>
+              <div className="field"><label>Model</label><select value={p.model||""} onChange={e=>update(p.id,{model:e.target.value})}>
+                {models[p.id]?.length?<>{models[p.id].map(m=><option key={m.id} value={m.id}>{m.name}{m.id!==m.name?" — "+m.id:""}</option>)}</>:<option value={p.model||""}>{p.model||"Chưa tải model"}</option>}
+              </select></div>
+              {models[p.id]?.length>0&&<div className="muted" style={{marginTop:-7,marginBottom:10}}>Đã tải {models[p.id].length} model. Chọn trực tiếp từ danh sách.</div>}
               <div className="field"><label>API key</label><input type="password" value={p.key||""} onChange={e=>update(p.id,{key:e.target.value})} placeholder={p.placeholder}/></div>
-              <div className="provider-actions"><button className="btn" onClick={()=>testProvider(p)}>Test connection</button><button className="btn" onClick={()=>clearKey(p.id)}>Clear key</button><a className="btn primary" href={p.keyUrl} target="_blank" rel="noopener noreferrer">Lấy API key ↗</a></div>
+              <div className="provider-actions"><button className="btn" onClick={()=>loadModels(p)} disabled={loadingModels[p.id]}>{loadingModels[p.id]?"Đang tải…":"↻ Tải models"}</button><button className="btn" onClick={()=>testProvider(p)}>Test connection</button><button className="btn" onClick={()=>clearKey(p.id)}>Clear key</button><a className="btn primary" href={p.keyUrl} target="_blank" rel="noopener noreferrer">Lấy API key ↗</a></div>
             </div>)}</div>
           </div>
         </section>}
