@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import EngineeringWorkspace from "./components/EngineeringWorkspace";
 
 const DEFAULTS = [
   {id:"google",name:"Google Gemini — FREE",model:"gemini-2.5-flash",placeholder:"AIza...",enabled:false,keyUrl:"https://aistudio.google.com/app/apikey",free:true},
@@ -45,7 +46,7 @@ export default function Home(){
   const [mediaHistory,setMediaHistory]=useState(()=>{try{return JSON.parse(localStorage.getItem("asf.media")||"[]")}catch{return []}});
   const [mediaBusy,setMediaBusy]=useState(false);
 
-  useEffect(()=>localStorage.setItem("asf.providers",JSON.stringify(providers)),[providers]);
+  useEffect(()=>{localStorage.setItem("asf.providers",JSON.stringify(providers));window.__ASF_PROVIDERS__=providers.filter(p=>p.free&&p.enabled&&p.key).map(p=>({id:p.id,key:p.key,model:p.model}));},[providers]);
   useEffect(()=>localStorage.setItem("asf.projects",JSON.stringify(projects)),[projects]);
   useEffect(()=>localStorage.setItem("asf.media",JSON.stringify(mediaHistory)),[mediaHistory]);
   useEffect(()=>localStorage.setItem("asf.chats",JSON.stringify(chatSessions)),[chatSessions]);
@@ -60,7 +61,7 @@ export default function Home(){
   useEffect(()=>{
     if(!activeProject)return;
     const t=setTimeout(()=>{
-      setProjects(xs=>xs.map(p=>p.id===activeProject?{...p,name:project||"Dự án chưa đặt tên",description:prompt,vercel:preview,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),updatedAt:new Date().toISOString()}:p));
+      setProjects(xs=>xs.map(p=>p.id===activeProject?{...p,name:project||"Dự án chưa đặt tên",description:prompt,vercel:preview,blueprint:messages.filter(x=>x.role==="assistant").map(x=>x.content).join("\n\n"),previewHtml,updatedAt:new Date().toISOString()}:p));
     },700);
     return()=>clearTimeout(t);
   },[project,prompt,preview,messages,activeProject]);
@@ -163,7 +164,7 @@ export default function Home(){
     <aside className="sidebar">
       <div className="brand"><div className="logo">AI</div><div><b>AI Software Factory</b><span>Build • Review • Ship</span></div></div>
       <div className="nav">
-        <button className={tab==="workspace"?"active":""} onClick={()=>setTab("workspace")}>⌘ Workspace</button>
+        <button className={tab==="workspace"?"active":""} onClick={()=>setTab("workspace")}>⌘ Workspace</button><button className={tab==="ide"?"active":""} onClick={()=>setTab("ide")}>⌘ AI Code Studio</button>
         <button className={tab==="media"?"active":""} onClick={()=>setTab("media")}>✦ AI Media Studio</button>
         <div className="chat-mini"><div className="project-mini-head"><b>Đoạn chat</b><button onClick={newChat}>+</button></div>{chatSessions.slice(0,10).map(ch=><div className="project-row" key={ch.id}><button className={activeChat===ch.id?"project-item active":"project-item"} onClick={()=>openChat(ch)}>{ch.name}</button><button className="project-delete" title="Xóa đoạn chat" onClick={()=>deleteChat(ch.id)}>×</button></div>)}{!chatSessions.length&&<span>Chưa có đoạn chat</span>}</div>
         <button className={tab==="settings"?"active":""} onClick={()=>setTab("settings")}>⚙ AI Providers</button><div className="project-mini"><div className="project-mini-head"><b>Projects</b><button onClick={newProject}>+</button></div>{projects.slice(0,8).map(p=><div className="project-row" key={p.id}><button className={activeProject===p.id?"project-item active":"project-item"} onClick={()=>openProject(p)}>{p.name}</button><button className="project-delete" title="Xóa dự án" onClick={()=>deleteProject(p.id)}>×</button></div>)}{!projects.length&&<span>Chưa có dự án</span>}</div>
@@ -173,7 +174,7 @@ export default function Home(){
     <main className="main">
       <header className="topbar"><div className="status"><span className="dot"/>{enabled.length} provider sẵn sàng</div><div className="row"><button className="btn" onClick={newChat}>+ Chat mới</button><button className="btn" onClick={()=>setTab("settings")}>Manage AI</button></div></header>
       <div className="content">
-        {tab==="workspace"?<section className="workspace">
+        {tab==="ide"?<EngineeringWorkspace prompt={prompt} setPrompt={setPrompt} busy={busy} previewHtml={previewHtml} setPreviewHtml={setPreviewHtml} logs={logs} setLogs={setLogs}/>:tab==="workspace"?<section className="workspace">
           <div className="hero"><div><div className="eyebrow">AI orchestration workspace</div><h1>Build your software with multiple AIs.</h1><p>Nhập yêu cầu. Router sẽ ưu tiên provider bạn chọn, rồi fallback sang provider khác khi gặp lỗi hoặc giới hạn.</p></div><div className="row"><button className="btn" onClick={newProject}>+ New project</button><button className="btn primary" onClick={saveProject}>Save project</button></div></div>
           <div className="grid">
             <div className="card chat">
