@@ -91,7 +91,14 @@ async function call(p){
   const c=PROVIDERS[p.id], r=await fetch(typeof c.url==="function"?c.url(p.model,p.key):c.url,{method:"POST",headers:c.headers(p.key),body:JSON.stringify(c.body(p.model,p.prompt))});
   const raw=await r.text(); let d; try{d=JSON.parse(raw)}catch{d={error:{message:raw}}}
   if(!r.ok){const e=new Error(d?.error?.message||d?.message||("HTTP "+r.status));e.status=r.status;throw e}
-  const text=c.parse(d); if(!text) throw new Error("Provider trả về rỗng."); return text;
+  const text=c.parse(d); if(!text) throw new Error("Provider trả về rỗng.");
+  const quota={
+    remainingRequests:r.headers.get("x-ratelimit-remaining-requests")||r.headers.get("x-ratelimit-remaining")||r.headers.get("ratelimit-remaining")||null,
+    limitRequests:r.headers.get("x-ratelimit-limit-requests")||r.headers.get("x-ratelimit-limit")||r.headers.get("ratelimit-limit")||null,
+    remainingTokens:r.headers.get("x-ratelimit-remaining-tokens")||null,
+    limitTokens:r.headers.get("x-ratelimit-limit-tokens")||null
+  };
+  return {text,quota};
 }
 
 
@@ -128,11 +135,12 @@ export async function POST(req){
       const existing=b.existingHtml?String(b.existingHtml):""; const editNote=existing?"\n\nEXISTING PRODUCT: Modify the current Live Preview in place. Preserve its features and platform. Do not start a new app. Return the complete updated HTML.\n\nCURRENT HTML:\n"+existing:"\n\nNO EXISTING PRODUCT: Build from scratch.";\n       const buildPrompt=languageInstruction(b.prompt)+"\n\n"+contextText+"\n\n"+targetNote+editNote+"\n\nYou are the product implementation engine inside an AI Software Factory. The user expects an actual working preview, not a tutorial or a code dump. Build a complete self-contained interactive product preview. Return ONLY one complete HTML document starting with <!doctype html> and ending with </html>. Use inline CSS and vanilla JavaScript only. No markdown fences, no explanations, no external paid services. If the target is Android or iOS, make a convincing phone simulator frame with native-looking controls and implement the requested interaction using browser-safe APIs such as SpeechSynthesis when appropriate. The preview must never be blank. Include useful demo data/state and working buttons. IMPORTANT: do not load external scripts, styles, fonts, images, modules, CDN assets, network APIs, or parent-frame resources. Everything required for the preview must be inline and self-contained. Do not use window.parent, top, opener, import(), fetch() to external services, or browser APIs that require permissions. Keep JavaScript defensive: check elements before use, avoid duplicate IDs, and initialize only after DOMContentLoaded.\n\nUSER REQUEST:\n"+b.prompt;
       const logs=[]; let last="";
       for(const p of ordered){logs.push("FREE Build Router → "+p.id+" / "+(p.model||"default"));try{
-        const text=await call({...p,prompt:buildPrompt});
+        const result=await call({...p,prompt:buildPrompt});
+        const text=result.text;
         const html=text.replace(/^\s*```(?:html)?\s*/i,"").replace(/\s*```\s*$/,"").trim();
         if(!/^<!doctype html>/i.test(html)||!/<\/html>\s*$/i.test(html))throw new Error("AI không trả về HTML preview hợp lệ.");
         logs.push("✓ "+p.id+" tạo preview OK");
-        return NextResponse.json({ok:true,html,provider:p.id,platform,previewType:platform==="web"?"web-live":"device-simulator",logs});
+        return NextResponse.json({ok:true,html,provider:p.id,platform,previewType:platform==="web"?"web-live":"device-simulator",logs,quota:result.quota||null});
       }catch(e){last=e.message;logs.push((transient(e.status)?"↪ ":"✕ ")+p.id+": "+e.message)}}
       logs.push("⚙ FREE providers unavailable → dùng Local Runtime fallback để Preview không bị trắng");
       const html=localPreview(b.prompt,platform,existing);\n      return NextResponse.json({ok:true,html,provider:"local-runtime",platform,previewType:platform==="web"?"web-live":"device-simulator",fallback:true,logs,lastError:last},{status:200});
@@ -177,7 +185,7 @@ export async function POST(req){
     }[b.mode||"auto"];
     const routedPrompt=languageInstruction(b.prompt)+"\n\n"+conversationInstruction(b.history,b.prompt)+"\n\n"+workflow+"\n\nEXECUTION RULE: The user wants the easiest practical implementation. If context is sufficient, do not ask repetitive discovery questions; produce the next concrete step.\n";
     const logs=[]; let last="";
-    for(const p of ordered){logs.push("FREE Router → "+p.id+" / "+(p.model||"default"));try{const text=await call({...p,prompt:routedPrompt});logs.push("✓ "+p.id+" OK");return NextResponse.json({text,provider:p.id,logs})}catch(e){last=e.message;logs.push((transient(e.status)?"↪ ":"✕ ")+p.id+": "+e.message)}}
+    for(const p of ordered){logs.push("FREE Router → "+p.id+" / "+(p.model||"default"));try{const result=await call({...p,prompt:routedPrompt});logs.push("✓ "+p.id+" OK");return NextResponse.json({text:result.text,provider:p.id,logs,quota:result.quota||null})}catch(e){last=e.message;logs.push((transient(e.status)?"↪ ":"✕ ")+p.id+": "+e.message)}}
     return NextResponse.json({error:"Tất cả nguồn FREE hiện không khả dụng. Không chuyển sang nguồn trả phí.",logs,lastError:last},{status:502});
   }catch(e){return NextResponse.json({error:e.message||"Server error"},{status:500})}
 }
