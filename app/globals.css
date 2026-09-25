@@ -58,3 +58,9 @@
 .pipeline-step.done span{border-color:#2c704d;color:#8ee4b8}
 .pipeline-step.error{color:#ff8d8d}
 .pipeline-step.error span{border-color:#6b2929;color:#ff8d8d}
+
+
+/* Smart chat scroll + approval gate */
+.messages{scroll-behavior:smooth;position:relative}
+.jump-latest{position:absolute;right:18px;bottom:138px;z-index:3;border:1px solid rgba(212,175,90,.35);background:rgba(17,20,28,.96);color:#f4dfad;border-radius:999px;padding:8px 12px;font-size:11px;box-shadow:0 10px 25px rgba(0,0,0,.35)}
+.jump-latest:hover{background:#1a1e29;border-color:#d4af5a}
