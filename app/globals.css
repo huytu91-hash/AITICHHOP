@@ -14,3 +14,5 @@
 .project-mini{border-color:rgba(255,255,255,.075);background:#090b10}
 .project-item:hover,.project-item.active{background:linear-gradient(90deg,rgba(212,175,55,.12),rgba(124,58,237,.07));color:#fff}
 .log{background:#080a0e;border-color:rgba(255,255,255,.06)}
+
+.project-row{display:flex;align-items:center;gap:3px}.project-row .project-item{flex:1;min-width:0}.project-delete{width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:#66738b;font-size:16px}.project-delete:hover{background:#261318;color:#ff9b9b}.card input[type=file]{font-size:12px;color:#8793a8}
